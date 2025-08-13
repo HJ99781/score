@@ -1,193 +1,1174 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firestore 로그인 및 데이터 처리</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query } from 'firebase/firestore';
+
+// Tailwind CSS is assumed to be available
+// Pastel color palette for a consistent, soft aesthetic
+const pastelColors = {
+  bg: '#f0f4f8',
+  card: '#ffffff',
+  primary: '#81c784',
+  primaryHover: '#66bb6a',
+  secondary: '#b39ddb',
+  accent: '#f48fb1',
+  text: '#374151',
+  muted: '#e2e8f0',
+};
+
+// Custom components based on Tailwind CSS for a consistent look
+const CustomButton = ({ children, className, ...props }) => <button className={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 text-white bg-green-400 hover:bg-green-500 ${className}`} {...props}>{children}</button>;
+const CustomInput = ({ ...props }) => <input className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" {...props} />;
+const CustomCard = ({ children, ...props }) => <div className="rounded-xl border border-gray-200 bg-white text-gray-800 shadow-sm transition-all duration-300 hover:shadow-lg">{children}</div>;
+const CustomCardHeader = ({ children, ...props }) => <div className="flex flex-col space-y-1.5 p-6">{children}</div>;
+const CustomCardTitle = ({ children, ...props }) => <h3 className="text-2xl font-semibold leading-none tracking-tight text-gray-900">{children}</h3>;
+const CustomCardDescription = ({ children, ...props }) => <p className="text-sm text-gray-500">{children}</p>;
+const CustomCardContent = ({ children, ...props }) => <div className="p-6 pt-0">{children}</div>;
+const CustomTable = ({ children }) => <div className="w-full overflow-auto rounded-md border border-gray-200"><table className="w-full caption-bottom text-sm">{children}</table></div>;
+const CustomTableHeader = ({ children }) => <thead className="[&_tr]:border-b border-gray-200 bg-gray-50">{children}</thead>;
+const CustomTableBody = ({ children }) => <tbody className="[&_tr:last-child]:border-0">{children}</tbody>;
+const CustomTableRow = ({ children }) => <tr className="border-b border-gray-100 transition-colors hover:bg-gray-50 data-[state=selected]:bg-gray-100">{children}</tr>;
+const CustomTableHead = ({ children, className = '' }) => <th className={`h-12 px-4 text-left align-middle font-medium text-gray-500 [&:has([role=checkbox])]:pr-0 ${className}`}>{children}</th>;
+const CustomTableCell = ({ children }) => <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">{children}</td>;
+const CustomSelect = ({ children, value, onChange }) => <select value={value} onChange={onChange} className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">{children}</select>;
+const CustomSelectItem = ({ children, value }) => <option value={value}>{children}</option>;
+
+
+const App = () => {
+  // Global Firebase variables
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+  const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
+  
+  // State for Firebase and user authentication
+  const [db, setDb] = useState(null);
+  const [auth, setAuth] = useState(null);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Login credentials state
+  const [loginId, setLoginId] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  
+  // Shared data state
+  const [appData, setAppData] = useState({
+    setupData: [],
+    gradeInputData: {
+      year: '',
+      semester: '',
+      students: [],
+    },
+    calculatedGrades: [],
+  });
+
+  // State for '과목 설정' inputs
+  const [setupYear, setSetupYear] = useState('');
+  const [setupSemester, setSetupSemester] = useState('');
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [newSubjectUnits, setNewSubjectUnits] = useState('');
+  const [newSubjectType, setNewSubjectType] = useState('일반');
+  const [newSubjectAverage, setNewSubjectAverage] = useState('');
+  const [newSubjectStdDev, setNewSubjectStdDev] = useState('');
+  const [editingSubject, setEditingSubject] = useState(null);
+
+  // States for '성적 입력' student navigation
+  const [currentStudentIndex, setCurrentStudentIndex] = useState(0);
+  const fileInputRef = useRef(null);
+  
+  // States for '등급 산출' view
+  const [resultsViewMode, setResultsViewMode] = useState('student');
+  const [selectedClass, setSelectedClass] = useState('전체');
+  const [selectedResultsYear, setSelectedResultsYear] = useState('');
+  const [selectedResultsSemester, setSelectedResultsSemester] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Firestore document path and ID
+  const sharedUserId = 'shared-user-123';
+  const dataPath = `artifacts/${appId}/public/data/shared-grade-app/${sharedUserId}`;
+  
+  // A simple, hardcoded password for shared access. A real app would use a more secure method.
+  const sharedPassword = 'shared-password';
+
+  // Function to save data to Firestore
+  const saveDataToFirestore = async (data) => {
+    if (!db || !user) {
+      console.error("Firestore is not initialized or user is not authenticated.");
+      return;
+    }
+    
+    // Ensure all data types are serializable by Firestore
+    const sanitizedData = {
+      ...data,
+      gradeInputData: {
+        ...data.gradeInputData,
+        students: data.gradeInputData.students.map(s => ({
+          ...s,
+          scores: s.scores ? JSON.parse(JSON.stringify(s.scores)) : {}
+        })),
+      },
+    };
+    
+    const docRef = doc(db, `artifacts/${appId}/public/data/shared-grade-app`, sharedUserId);
+    try {
+      await setDoc(docRef, sanitizedData, { merge: true });
+      console.log("Document successfully written!");
+    } catch (error) {
+      console.error("Error writing document: ", error);
+    }
+  };
+
+  // Debounce function to limit Firestore writes
+  const debounce = useRef(null);
+  const debouncedSave = (data) => {
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => {
+      saveDataToFirestore(data);
+    }, 500); // Wait 500ms before saving
+  };
+  
+  // Effect for Firebase initialization and authentication
+  useEffect(() => {
+    if (Object.keys(firebaseConfig).length === 0) {
+      console.error("Firebase config is missing.");
+      return;
+    }
+    
+    const app = initializeApp(firebaseConfig);
+    const firestoreDb = getFirestore(app);
+    const firebaseAuth = getAuth(app);
+    setDb(firestoreDb);
+    setAuth(firebaseAuth);
+    
+    const signIn = async () => {
+      try {
+        if (initialAuthToken) {
+          await signInWithCustomToken(firebaseAuth, initialAuthToken);
+        } else {
+          await signInAnonymously(firebaseAuth);
         }
-    </style>
-</head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-    <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm">
-        <!-- 로그인 폼 컨테이너 -->
-        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6" id="main-title">로그인</h1>
-        <div id="login-container">
-            <div class="mb-4">
-                <label for="username" class="block text-gray-700 font-medium mb-2">사용자 ID</label>
-                <input type="text" id="username" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="사용자 ID를 입력하세요">
-            </div>
-            <div class="mb-6">
-                <label for="password" class="block text-gray-700 font-medium mb-2">비밀번호</label>
-                <input type="password" id="password" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="비밀번호를 입력하세요">
-            </div>
-            <button id="login-button" class="w-full bg-blue-600 text-white py-2 rounded-md font-semibold hover:bg-blue-700 transition-colors">로그인</button>
-        </div>
+      } catch (error) {
+        console.error("Authentication error:", error);
+      }
+    };
+    
+    signIn();
+    
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (currentUser) => {
+      setUser(currentUser);
+      setIsLoading(false);
+    });
+    
+    return () => unsubscribe();
+  }, [initialAuthToken]);
+  
+  // Effect to listen for real-time data changes from Firestore
+  useEffect(() => {
+    if (!db || !user || !isAuthenticated) return;
+    
+    const docRef = doc(db, `artifacts/${appId}/public/data/shared-grade-app`, sharedUserId);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setAppData({
+          ...data,
+          // Deserialize scores if they were stringified (not needed here but good practice)
+          gradeInputData: {
+            ...data.gradeInputData,
+            students: data.gradeInputData.students.map(s => ({
+              ...s,
+              scores: s.scores ? s.scores : {}
+            }))
+          }
+        });
+      } else {
+        // If document doesn't exist, create it with initial data
+        const initialData = {
+          setupData: [],
+          gradeInputData: { year: '', semester: '', students: [] },
+          calculatedGrades: [],
+        };
+        saveDataToFirestore(initialData);
+        setAppData(initialData);
+      }
+    }, (error) => {
+      console.error("Error getting real-time data:", error);
+    });
+    
+    return () => unsubscribe();
+  }, [db, user, isAuthenticated]);
 
-        <!-- 로그인 후 보여질 데이터 처리 화면 -->
-        <div id="data-container" class="hidden mt-6 text-center">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">로그인 성공! Firestore에 연결되었습니다.</h2>
-            <p class="text-gray-600 mb-6">아래 버튼을 눌러 Firestore에 데이터를 저장하고 읽어오는 것을 테스트해보세요.</p>
-            <div class="space-y-4">
-                <button id="write-button" class="w-full bg-green-600 text-white py-2 rounded-md font-semibold hover:bg-green-700 transition-colors">데이터 쓰기</button>
-                <button id="read-button" class="w-full bg-purple-600 text-white py-2 rounded-md font-semibold hover:bg-purple-700 transition-colors">데이터 읽기</button>
-            </div>
-            <p id="firestore-message" class="mt-6 text-gray-700 font-medium break-words"></p>
-        </div>
+  // Effect to automatically select semesters
+  useEffect(() => {
+    if (appData.setupData.length > 0 && (!appData.gradeInputData.year || !appData.gradeInputData.semester)) {
+      setAppData(prev => ({
+        ...prev,
+        gradeInputData: {
+          ...prev.gradeInputData,
+          year: prev.setupData[0].year,
+          semester: prev.setupData[0].semester,
+        }
+      }));
+    }
+    if (appData.calculatedGrades.length > 0 && (!selectedResultsYear || !selectedResultsSemester)) {
+      const lastGrade = appData.calculatedGrades[appData.calculatedGrades.length - 1];
+      setSelectedResultsYear(lastGrade.year);
+      setSelectedResultsSemester(lastGrade.semester);
+    }
+  }, [appData.setupData, appData.calculatedGrades]);
+  
+  // Login handler
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (loginId === sharedUserId && loginPassword === sharedPassword) {
+      setIsAuthenticated(true);
+      setLoginError('');
+    } else {
+      setLoginError('ID 또는 비밀번호가 올바르지 않습니다.');
+    }
+  };
 
-        <!-- 메시지 박스 -->
-        <div id="message-box" class="fixed top-4 right-4 p-4 text-white rounded-md shadow-lg hidden z-50">
-            <p id="message-text"></p>
-        </div>
-    </div>
+  // Z-score based grade calculation function
+  const calculateZScoreGrade = (score, average, stdDev) => {
+    if (stdDev === 0 || isNaN(average) || isNaN(stdDev)) return '-';
+    const zScore = (score - average) / stdDev;
 
-    <script type="module">
-        // Firebase SDK imports
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    if (zScore >= 1.75) return 1;
+    if (zScore >= 1.25) return 2;
+    if (zScore >= 0.75) return 3;
+    if (zScore >= 0.25) return 4;
+    if (zScore >= -0.25) return 5;
+    if (zScore >= -0.75) return 6;
+    if (zScore >= -1.25) return 7;
+    if (zScore >= -1.75) return 8;
+    return 9;
+  };
+  
+  // Handler to add or update a subject
+  const handleAddOrUpdateSubject = () => {
+    if (!setupYear || !setupSemester || !newSubjectName || !newSubjectUnits) {
+      alert('학년, 학기, 과목 이름, 단위를 모두 입력해주세요.');
+      return;
+    }
+  
+    const newSubject = {
+      id: editingSubject ? editingSubject.id : Date.now(),
+      name: newSubjectName,
+      units: parseInt(newSubjectUnits, 10),
+      type: newSubjectType,
+      ...(newSubjectType === 'Z-점수' && {
+        average: parseFloat(newSubjectAverage),
+        stdDev: parseFloat(newSubjectStdDev),
+      }),
+    };
+  
+    const updatedSetupData = [...appData.setupData];
+    const existingSemesterConfigIndex = updatedSetupData.findIndex(
+      entry => entry.year === setupYear && entry.semester === setupSemester
+    );
+  
+    if (existingSemesterConfigIndex !== -1) {
+      const existingSubjects = updatedSetupData[existingSemesterConfigIndex].subjects;
+      const subjectIndex = existingSubjects.findIndex(s => s.id === newSubject.id);
+      if (subjectIndex !== -1) {
+        existingSubjects[subjectIndex] = newSubject;
+      } else {
+        existingSubjects.push(newSubject);
+      }
+    } else {
+      updatedSetupData.push({
+        year: setupYear,
+        semester: setupSemester,
+        subjects: [newSubject],
+      });
+    }
+  
+    debouncedSave({ ...appData, setupData: updatedSetupData });
+  
+    setNewSubjectName('');
+    setNewSubjectUnits('');
+    setNewSubjectType('일반');
+    setNewSubjectAverage('');
+    setNewSubjectStdDev('');
+    setEditingSubject(null);
+  };
 
-        // Firebase configuration (replace with your actual config)
-        const firebaseConfig = {
-            apiKey: "AIzaSyClRLOmDay20rQ4F0eOWT64vKCgSBTuido",
-            authDomain: "score-c7b85.firebaseapp.com",
-            projectId: "score-c7b85",
-            storageBucket: "score-c7b85.firebasestorage.app",
-            messagingSenderId: "629818605979",
-            appId: "1:629818605979:web:2e358040352ec3e739613e",
-            measurementId: "G-YRTRDR4YQM"
+  // Handler to set a subject for editing
+  const handleEditSubject = (subject) => {
+    setSetupYear(subject.year);
+    setSetupSemester(subject.semester);
+    setNewSubjectName(subject.name);
+    setNewSubjectUnits(subject.units);
+    setNewSubjectType(subject.type);
+    setNewSubjectAverage(subject.average || '');
+    setNewSubjectStdDev(subject.stdDev || '');
+    setEditingSubject(subject);
+  };
+  
+  // Handler to delete a subject
+  const handleDeleteSubject = (subjectToDelete) => {
+    const updatedSetupData = appData.setupData.map(semesterConfig => ({
+      ...semesterConfig,
+      subjects: semesterConfig.subjects.filter(s => s.id !== subjectToDelete.id),
+    })).filter(semesterConfig => semesterConfig.subjects.length > 0);
+    
+    debouncedSave({ ...appData, setupData: updatedSetupData });
+  };
+  
+  // Function to process grades and calculate final results
+  const processGradeData = () => {
+    if (!appData.gradeInputData.year || !appData.gradeInputData.semester) {
+      alert('성적을 처리할 학년과 학기를 입력해주세요.');
+      return;
+    }
+    
+    const selectedSemesterSetup = appData.setupData.find(d =>
+      d.year === appData.gradeInputData.year && d.semester === appData.gradeInputData.semester
+    );
+    
+    if (!selectedSemesterSetup) {
+      alert('선택한 학년/학기에 대한 과목 설정이 없습니다. "과목 설정" 섹션에서 먼저 과목을 추가해주세요.');
+      return;
+    }
+    
+    const studentsWithCalculatedGrades = appData.gradeInputData.students.map(student => {
+      const studentCopy = { id: student.id, name: student.name, class: student.class, scores: {} };
+      
+      let totalWeightedScore = 0;
+      let totalUnits = 0;
+      
+      selectedSemesterSetup.subjects.forEach(subject => {
+        let rawScore = null;
+        let grade = '-';
+
+        if (subject.type === 'Z-점수') {
+          rawScore = parseFloat(student.scores[subject.name]?.raw);
+          if (!isNaN(rawScore)) {
+            grade = calculateZScoreGrade(rawScore, subject.average, subject.stdDev);
+          }
+        } else {
+          grade = parseInt(student.scores[subject.name]?.grade, 10);
+          if (isNaN(grade)) grade = '-';
+        }
+
+        studentCopy.scores[subject.name] = {
+          raw: rawScore,
+          grade: grade,
+          units: subject.units,
         };
         
-        let app;
-        let db;
-        let auth;
-        let isFirebaseInitialized = false;
+        if (grade !== '-') {
+          totalWeightedScore += grade * subject.units;
+          totalUnits += subject.units;
+        }
+      });
+      
+      studentCopy.semesterGPA = totalUnits > 0 ? (totalWeightedScore / totalUnits).toFixed(2) : '-';
+      
+      return studentCopy;
+    });
+    
+    const newCalculatedGrades = [...appData.calculatedGrades];
+    const existingIndex = newCalculatedGrades.findIndex(item => item.year === appData.gradeInputData.year && item.semester === appData.gradeInputData.semester);
+    
+    const newData = {
+      year: appData.gradeInputData.year,
+      semester: appData.gradeInputData.semester,
+      students: studentsWithCalculatedGrades,
+    };
+    
+    if (existingIndex !== -1) {
+      newCalculatedGrades[existingIndex] = newData;
+    } else {
+      newCalculatedGrades.push(newData);
+    }
+    
+    debouncedSave({ ...appData, calculatedGrades: newCalculatedGrades });
+  };
+  
+  // Handler to add a new student
+  const handleAddStudent = () => {
+    const newStudentId = Date.now();
+    const selectedSemesterSubjects = appData.setupData.find(d =>
+      d.year === appData.gradeInputData.year && d.semester === appData.gradeInputData.semester
+    )?.subjects || [];
+    
+    const newScores = {};
+    selectedSemesterSubjects.forEach(subject => {
+      newScores[subject.name] = {
+        raw: subject.type === 'Z-점수' ? '' : null,
+        grade: subject.type === '일반' ? '' : null,
+      };
+    });
+    
+    const updatedStudents = [...appData.gradeInputData.students, { id: newStudentId, name: '', class: '', scores: newScores }];
+    
+    setAppData(prev => ({
+      ...prev,
+      gradeInputData: {
+        ...prev.gradeInputData,
+        students: updatedStudents,
+      },
+    }));
+    debouncedSave({
+      ...appData,
+      gradeInputData: {
+        ...appData.gradeInputData,
+        students: updatedStudents,
+      },
+    });
+    setCurrentStudentIndex(updatedStudents.length - 1);
+  };
+  
+  // Handlers to update student fields and scores
+  const handleUpdateStudentField = (index, field, value) => {
+    const updatedStudents = [...appData.gradeInputData.students];
+    updatedStudents[index][field] = value;
+    
+    setAppData(prev => ({
+      ...prev,
+      gradeInputData: {
+        ...prev.gradeInputData,
+        students: updatedStudents,
+      }
+    }));
+    debouncedSave({
+      ...appData,
+      gradeInputData: {
+        ...appData.gradeInputData,
+        students: updatedStudents,
+      },
+    });
+  };
+
+  const handleUpdateStudentScore = (studentIndex, subjectName, type, value) => {
+    const updatedStudents = [...appData.gradeInputData.students];
+    if (!updatedStudents[studentIndex].scores[subjectName]) {
+      updatedStudents[studentIndex].scores[subjectName] = {};
+    }
+    updatedStudents[studentIndex].scores[subjectName][type] = value;
+    
+    setAppData(prev => ({
+      ...prev,
+      gradeInputData: {
+        ...prev.gradeInputData,
+        students: updatedStudents,
+      },
+    }));
+    debouncedSave({
+      ...appData,
+      gradeInputData: {
+        ...appData.gradeInputData,
+        students: updatedStudents,
+      },
+    });
+  };
+  
+  // Handler to download Excel template
+  const handleDownloadTemplate = () => {
+    const selectedSemesterSubjects = appData.setupData.find(d =>
+      d.year === appData.gradeInputData.year && d.semester === appData.gradeInputData.semester
+    )?.subjects || [];
+    
+    if (selectedSemesterSubjects.length === 0) {
+      alert('먼저 과목을 추가해주세요.');
+      return;
+    }
+    
+    const headers = ['반', '이름', ...selectedSemesterSubjects.map(s => `${s.name} (${s.type === 'Z-점수' ? '점수' : '등급'})`)];
+    const bom = '\uFEff'; 
+    const csvContent = bom + headers.join(',') + '\n';
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${appData.gradeInputData.year}학년 ${appData.gradeInputData.semester}학기 성적 양식.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+  
+  // Handler for Excel file upload
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const csvData = event.target.result;
+      const lines = csvData.trim().split('\n');
+      const headers = lines[0].split(',').map(h => h.trim());
+
+      const studentsData = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim());
+        const newStudentId = Date.now() + Math.random();
+        const student = { id: newStudentId, name: '', class: '', scores: {} };
         
-        // Initialize Firebase
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            isFirebaseInitialized = true;
-            console.log("Firebase app initialized successfully.");
-        } catch (error) {
-            console.error("Firebase initialization failed:", error);
-            document.getElementById('firestore-message').textContent = `오류: Firebase 초기화 실패. ${error.message}`;
-            document.getElementById('login-button').disabled = true;
-        }
-
-        // Authenticate the user
-        async function authenticateAndSetup() {
-            if (!isFirebaseInitialized) return;
-            try {
-                if (typeof __initial_auth_token !== 'undefined') {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                console.log("Firebase authentication successful!");
-            } catch (error) {
-                console.error("Firebase authentication failed:", error);
-            }
-        }
-
-        // Get DOM elements
-        const loginContainer = document.getElementById('login-container');
-        const dataContainer = document.getElementById('data-container');
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const loginButton = document.getElementById('login-button');
-        const writeButton = document.getElementById('write-button');
-        const readButton = document.getElementById('read-button');
-        const firestoreMessage = document.getElementById('firestore-message');
-        const messageBox = document.getElementById('message-box');
-        const messageText = document.getElementById('message-text');
-
-        // Function to show a temporary message box
-        function showMessage(text, isError = false) {
-            messageText.textContent = text;
-            messageBox.className = `fixed top-4 right-4 p-4 text-white rounded-md shadow-lg z-50 transition-transform transform ${isError ? 'bg-red-500' : 'bg-green-500'} translate-x-0`;
-            messageBox.style.display = 'block';
-            setTimeout(() => {
-                messageBox.style.display = 'none';
-            }, 3000);
-        }
-
-        // Login button event handler
-        loginButton.addEventListener('click', async () => {
-            const username = usernameInput.value;
-            const password = passwordInput.value;
-
-            // Check login credentials
-            if (username === 'teacher' && password === '7400') {
-                showMessage('로그인 성공!');
-                
-                // Hide login form and show data container
-                loginContainer.classList.add('hidden');
-                dataContainer.classList.remove('hidden');
-                
-                // Authenticate with Firebase for Firestore operations
-                await authenticateAndSetup();
-            } else {
-                showMessage('로그인 정보가 올바르지 않습니다.', true);
-            }
-        });
-
-        // Write data button event handler
-        writeButton.addEventListener('click', async () => {
-            if (!isFirebaseInitialized || !auth.currentUser) {
-                showMessage('Firebase가 초기화되지 않았거나 인증되지 않았습니다.', true);
-                return;
-            }
+        headers.forEach((header, index) => {
+          if (header === '반') {
+            student.class = values[index];
+          } else if (header === '이름') {
+            student.name = values[index];
+          } else if (header.includes('(')) {
+            const subjectName = header.split('(')[0].trim();
+            const subjectType = header.split('(')[1].replace(')', '').trim();
             
-            const userId = auth.currentUser.uid;
-            const docRef = doc(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/users/${userId}/data/example-doc`);
-            const data = {
-                message: "Hello, Firestore!",
-                timestamp: new Date().toISOString()
-            };
-
-            try {
-                await setDoc(docRef, data);
-                showMessage('데이터 쓰기 성공!');
-                firestoreMessage.textContent = '데이터가 성공적으로 Firestore에 저장되었습니다.';
-            } catch (error) {
-                console.error("Error writing document: ", error);
-                showMessage('데이터 쓰기 실패.', true);
-                firestoreMessage.textContent = `데이터 저장 오류: ${error.message}`;
-            }
+            const scoreKey = subjectType === '점수' ? 'raw' : 'grade';
+            student.scores[subjectName] = { [scoreKey]: values[index] };
+          }
         });
+        return student;
+      });
+      
+      const updatedGradeInputData = {
+        ...appData.gradeInputData,
+        students: studentsData,
+      };
+      
+      setAppData(prev => ({ ...prev, gradeInputData: updatedGradeInputData }));
+      debouncedSave({ ...appData, gradeInputData: updatedGradeInputData });
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
 
-        // Read data button event handler
-        readButton.addEventListener('click', async () => {
-            if (!isFirebaseInitialized || !auth.currentUser) {
-                showMessage('Firebase가 초기화되지 않았거나 인증되지 않았습니다.', true);
-                return;
-            }
+  // Memoized values for performance
+  const selectedSemesterSubjects = useMemo(() => {
+    return appData.setupData.find(d => d.year === appData.gradeInputData.year && d.semester === appData.gradeInputData.semester)?.subjects || [];
+  }, [appData.setupData, appData.gradeInputData.year, appData.gradeInputData.semester]);
 
-            const userId = auth.currentUser.uid;
-            const docRef = doc(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/users/${userId}/data/example-doc`);
+  const allSubjects = useMemo(() => {
+    return appData.setupData.flatMap(semesterConfig => 
+      semesterConfig.subjects.map(subject => ({
+        ...subject,
+        year: semesterConfig.year,
+        semester: semesterConfig.semester
+      }))
+    );
+  }, [appData.setupData]);
 
-            try {
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    showMessage('데이터 읽기 성공!');
-                    firestoreMessage.textContent = `Firestore에서 읽은 데이터: ${JSON.stringify(data, null, 2)}`;
-                } else {
-                    showMessage('데이터가 존재하지 않습니다.', true);
-                    firestoreMessage.textContent = "Firestore에 데이터가 없습니다. 먼저 '데이터 쓰기'를 시도해보세요.";
-                }
-            } catch (error) {
-                console.error("Error reading document: ", error);
-                showMessage('데이터 읽기 실패.', true);
-                firestoreMessage.textContent = `데이터 읽기 오류: ${error.message}`;
-            }
+  const allCalculatedStudents = useMemo(() => {
+    return appData.calculatedGrades.flatMap(s => s.students);
+  }, [appData.calculatedGrades]);
+
+  const allClassNames = useMemo(() => {
+    return [...new Set(allCalculatedStudents.map(s => s.class))].filter(c => c).sort();
+  }, [allCalculatedStudents]);
+
+  const allResultSemesters = useMemo(() => {
+    return appData.calculatedGrades.map(g => ({ year: g.year, semester: g.semester }));
+  }, [appData.calculatedGrades]);
+  
+  const currentResultsSemesterData = useMemo(() => {
+    return appData.calculatedGrades.find(g => g.year === selectedResultsYear && g.semester === selectedResultsSemester);
+  }, [appData.calculatedGrades, selectedResultsYear, selectedResultsSemester]);
+
+  const subjectsForSummary = useMemo(() => {
+    const semesterSetup = appData.setupData.find(
+      (d) => d.year === selectedResultsYear && d.semester === selectedResultsSemester
+    );
+    return semesterSetup?.subjects || [];
+  }, [appData.setupData, selectedResultsYear, selectedResultsSemester]);
+
+  const filteredStudents = useMemo(() => {
+    const students = currentResultsSemesterData?.students || [];
+    
+    // First, filter by selected class
+    const classFiltered = selectedClass === '전체'
+      ? students
+      : students.filter(student => student.class === selectedClass);
+      
+    // Then, filter by search query (case-insensitive)
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    if (!lowerCaseQuery) {
+      return classFiltered;
+    }
+    
+    return classFiltered.filter(student => 
+      (student.name?.toLowerCase() || '').includes(lowerCaseQuery) ||
+      (student.class?.toLowerCase() || '').includes(lowerCaseQuery)
+    );
+  }, [selectedClass, currentResultsSemesterData, searchQuery]);
+
+  // Function to calculate university-specific grades for a single student
+  const calculateUniversityGrades = (studentId) => {
+    const gpas = {};
+    appData.calculatedGrades.forEach(semesterData => {
+      const studentInSemester = semesterData.students.find(s => s.id === studentId);
+      if (studentInSemester) {
+        const key = `${semesterData.year}-${semesterData.semester}`;
+        gpas[key] = parseFloat(studentInSemester.semesterGPA);
+      }
+    });
+
+    let uniAGrade = '-';
+    let uniBGrade = '-';
+    
+    // A 대학 등급 계산 로직: 존재하는 학기 데이터만으로 가중 평균 산출
+    const gradesForA = [
+      { gpa: gpas['1-1'], weight: 0.20 },
+      { gpa: gpas['2-1'], weight: 0.30 },
+      { gpa: gpas['3-1'], weight: 0.50 }
+    ].filter(g => !isNaN(g.gpa));
+    
+    if (gradesForA.length > 0) {
+      const totalWeightedGpa = gradesForA.reduce((sum, g) => sum + g.gpa * g.weight, 0);
+      const totalWeight = gradesForA.reduce((sum, g) => sum + g.weight, 0);
+      uniAGrade = (totalWeightedGpa / totalWeight).toFixed(2);
+    }
+
+    // B대학 등급 계산 로직: 존재하는 학기 데이터만으로 가중 평균 산출
+    let totalWeightedGpaB = 0;
+    let totalWeightB = 0;
+    const gpa3_1 = gpas['3-1'];
+    
+    // 1-2학년 최고 성적 2개 계산
+    const firstTwoYearGPAs = [gpas['1-1'], gpas['1-2'], gpas['2-1'], gpas['2-2']].filter(g => !isNaN(g));
+    if (firstTwoYearGPAs.length >= 2) {
+      const sortedGPAs = firstTwoYearGPAs.sort((a, b) => a - b);
+      const bestTwoGPAs = sortedGPAs.slice(0, 2);
+      const bestTwoAvg = bestTwoGPAs.reduce((sum, g) => sum + g, 0) / bestTwoGPAs.length;
+      totalWeightedGpaB += bestTwoAvg * 0.50;
+      totalWeightB += 0.50;
+    }
+    
+    // 3학년 1학기 성적 반영
+    if (!isNaN(gpa3_1)) {
+      totalWeightedGpaB += gpa3_1 * 0.50;
+      totalWeightB += 0.50;
+    }
+    
+    if (totalWeightB > 0) {
+      uniBGrade = (totalWeightedGpaB / totalWeightB).toFixed(2);
+    }
+    
+    return { a: uniAGrade, b: uniBGrade };
+  };
+
+  const handleDownloadResults = () => {
+    if (filteredStudents.length === 0) {
+      alert('다운로드할 데이터가 없습니다.');
+      return;
+    }
+
+    const bom = '\uFEff';
+    let csvContent = '';
+    const semesterTitle = `${selectedResultsYear}학년 ${selectedResultsSemester}학기`;
+    let filename = `${semesterTitle} 성적 결과.csv`;
+
+    if (resultsViewMode === 'student') {
+      // 학생별 보기 모드 다운로드 (학기별 상세 등급)
+      const headers = ['반', '이름', '학년', '학기', '학기 총 등급', '과목명', '점수', '등급'];
+      csvContent = bom + headers.join(',') + '\n';
+      
+      filteredStudents.forEach(student => {
+        const studentAllSemesters = appData.calculatedGrades.filter(s => s.students.find(st => st.id === student.id));
+        
+        studentAllSemesters.forEach(semesterData => {
+          const currentStudentData = semesterData.students.find(st => st.id === student.id);
+          if (currentStudentData) {
+            Object.entries(currentStudentData.scores).forEach(([subjectName, scoreData]) => {
+              const row = [
+                student.class,
+                student.name,
+                semesterData.year,
+                semesterData.semester,
+                currentStudentData.semesterGPA,
+                subjectName,
+                scoreData.raw || '-',
+                scoreData.grade,
+              ].map(value => `"${value}"`).join(',');
+              csvContent += row + '\n';
+            });
+          }
         });
-    </script>
-</body>
-</html>
+      });
+      filename = `학생별_상세_성적_결과.csv`;
+
+    } else if (resultsViewMode === 'class') {
+      // 반별 요약 보기 모드 다운로드 (현재 학기 요약)
+      const headers = ['반', '이름', ...subjectsForSummary.map(s => s.name), '학기 총 등급', 'A대학 등급', 'B대학 등급'];
+      csvContent = bom + headers.join(',') + '\n';
+      filteredStudents.forEach(student => {
+        const uniGrades = calculateUniversityGrades(student.id);
+        const subjectGrades = subjectsForSummary.map(subject => student.scores[subject.name]?.grade || '-');
+        const row = [
+          student.class,
+          student.name,
+          ...subjectGrades,
+          student.semesterGPA,
+          uniGrades.a,
+          uniGrades.b
+        ].map(value => `"${value}"`).join(',');
+        csvContent += row + '\n';
+      });
+      filename = `${semesterTitle} 반별_요약_성적.csv`;
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+
+  // Render login screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: pastelColors.bg }}>
+        <CustomCard className="w-full max-w-sm">
+          <CustomCardHeader>
+            <CustomCardTitle>로그인 🔑</CustomCardTitle>
+            <CustomCardDescription>
+              동일한 데이터에 접근하려면 ID와 비밀번호를 입력하세요.
+            </CustomCardDescription>
+          </CustomCardHeader>
+          <CustomCardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  공유 ID
+                </label>
+                <CustomInput
+                  placeholder="ID"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  비밀번호
+                </label>
+                <CustomInput
+                  type="password"
+                  placeholder="비밀번호"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              {loginError && <p className="text-red-500 text-sm">{loginError}</p>}
+              <CustomButton type="submit" className="w-full bg-sky-500 hover:bg-sky-600" disabled={isLoading}>
+                {isLoading ? '로딩 중...' : '로그인'}
+              </CustomButton>
+              <p className="text-center text-xs text-gray-400">
+                힌트: ID는 `{sharedUserId}`, 비밀번호는 `{sharedPassword}`입니다.
+              </p>
+            </form>
+          </CustomCardContent>
+        </CustomCard>
+      </div>
+    );
+  }
+
+  // Main application UI after successful login
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: pastelColors.bg }}>
+      <div className="w-full max-w-4xl space-y-6">
+        
+        {/* Main Title Card */}
+        <CustomCard>
+          <CustomCardHeader>
+            <CustomCardTitle>학생 성적 관리 앱 ✨</CustomCardTitle>
+            <CustomCardDescription>
+              과목 설정부터 등급 산출까지, 모든 기능을 한 페이지에서 관리하세요. 데이터는 실시간으로 동기화됩니다.
+              <br/>
+              현재 로그인된 사용자 ID: <span className="font-semibold text-gray-700">{sharedUserId}</span>
+            </CustomCardDescription>
+          </CustomCardHeader>
+        </CustomCard>
+        
+        {/* Subject Setup Section */}
+        <CustomCard>
+          <CustomCardHeader>
+            <CustomCardTitle>과목 설정 📋</CustomCardTitle>
+          </CustomCardHeader>
+          <CustomCardContent className="space-y-4">
+            <div className="flex flex-col gap-2 p-4 border rounded-md bg-gray-50">
+              <h4 className="font-semibold mb-2">대상 학기 설정</h4>
+              <div className="flex gap-2">
+                <CustomInput placeholder="학년" value={setupYear} onChange={(e) => setSetupYear(e.target.value)} />
+                <CustomInput placeholder="학기" value={setupSemester} onChange={(e) => setSetupSemester(e.target.value)} />
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2 p-4 border rounded-md bg-gray-50">
+              <h4 className="font-semibold mb-2">{editingSubject ? '과목 수정' : '새 과목 추가'}</h4>
+              <div className="flex gap-2 items-center">
+                <CustomInput placeholder="과목 이름" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} />
+                <CustomInput placeholder="단위" type="number" value={newSubjectUnits} onChange={(e) => setNewSubjectUnits(e.target.value)} />
+              </div>
+              <div className="flex gap-4 items-center mt-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    id="normal"
+                    name="subjectType"
+                    value="일반"
+                    checked={newSubjectType === '일반'}
+                    onChange={(e) => setNewSubjectType(e.target.value)}
+                  />
+                  <label htmlFor="normal">일반 (등급 직접 입력)</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    id="zscore"
+                    name="subjectType"
+                    value="Z-점수"
+                    checked={newSubjectType === 'Z-점수'}
+                    onChange={(e) => setNewSubjectType(e.target.value)}
+                  />
+                  <label htmlFor="zscore">Z-점수 (점수 입력 시 등급 산출)</label>
+                </div>
+              </div>
+              {newSubjectType === 'Z-점수' && (
+                <div className="flex gap-2 mt-2">
+                  <CustomInput placeholder="평균" type="number" value={newSubjectAverage} onChange={(e) => setNewSubjectAverage(e.target.value)} />
+                  <CustomInput placeholder="표준편차" type="number" value={newSubjectStdDev} onChange={(e) => setNewSubjectStdDev(e.target.value)} />
+                </div>
+              )}
+              <CustomButton onClick={handleAddOrUpdateSubject} className="w-full mt-4">
+                {editingSubject ? '수정 사항 저장' : '과목 추가'}
+              </CustomButton>
+              {editingSubject && (
+                <CustomButton onClick={() => {
+                  setEditingSubject(null);
+                  setNewSubjectName('');
+                  setNewSubjectUnits('');
+                  setNewSubjectType('일반');
+                  setNewSubjectAverage('');
+                  setNewSubjectStdDev('');
+                }} className="w-full mt-2 bg-gray-300 text-gray-800 hover:bg-gray-400">
+                  수정 취소
+                </CustomButton>
+              )}
+            </div>
+
+            {allSubjects.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-semibold mb-2">설정된 모든 과목</h4>
+                <CustomTable>
+                  <CustomTableHeader>
+                    <CustomTableRow>
+                      <CustomTableHead>학년</CustomTableHead>
+                      <CustomTableHead>학기</CustomTableHead>
+                      <CustomTableHead>과목 이름</CustomTableHead>
+                      <CustomTableHead>단위</CustomTableHead>
+                      <CustomTableHead>타입</CustomTableHead>
+                      <CustomTableHead className="text-right">액션</CustomTableHead>
+                    </CustomTableRow>
+                  </CustomTableHeader>
+                  <CustomTableBody>
+                    {allSubjects.map((subject, subjIndex) => (
+                      <CustomTableRow key={subjIndex}>
+                        <CustomTableCell>{subject.year}</CustomTableCell>
+                        <CustomTableCell>{subject.semester}</CustomTableCell>
+                        <CustomTableCell>{subject.name}</CustomTableCell>
+                        <CustomTableCell>{subject.units}</CustomTableCell>
+                        <CustomTableCell>{subject.type}</CustomTableCell>
+                        <CustomTableCell className="text-right space-x-2">
+                          <CustomButton onClick={() => handleEditSubject(subject)} className="h-8 px-2 py-1 bg-gray-300 text-gray-800 hover:bg-gray-400">수정</CustomButton>
+                          <CustomButton onClick={() => handleDeleteSubject(subject)} className="h-8 px-2 py-1 bg-red-400 hover:bg-red-500">삭제</CustomButton>
+                        </CustomTableCell>
+                      </CustomTableRow>
+                    ))}
+                  </CustomTableBody>
+                </CustomTable>
+              </div>
+            )}
+          </CustomCardContent>
+        </CustomCard>
+
+        {/* Grade Input Section */}
+        <CustomCard>
+          <CustomCardHeader>
+            <CustomCardTitle>성적 입력 ✏️</CustomCardTitle>
+            <CustomCardDescription>
+              학년과 학기를 선택한 후 과목별로 점수/등급을 입력하거나, 엑셀 파일을 업로드하세요.
+            </CustomCardDescription>
+          </CustomCardHeader>
+          <CustomCardContent className="space-y-4">
+            <div className="flex gap-2">
+              <CustomInput placeholder="학년" value={appData.gradeInputData.year} onChange={(e) => setAppData(prev => ({ ...prev, gradeInputData: { ...prev.gradeInputData, year: e.target.value } }))} />
+              <CustomInput placeholder="학기" value={appData.gradeInputData.semester} onChange={(e) => setAppData(prev => ({ ...prev, gradeInputData: { ...prev.gradeInputData, semester: e.target.value } }))} />
+            </div>
+            
+            {selectedSemesterSubjects.length > 0 ? (
+              <>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CustomButton onClick={handleAddStudent}>학생 추가</CustomButton>
+                  <CustomButton onClick={handleDownloadTemplate} className="bg-gray-300 text-gray-800 hover:bg-gray-400">엑셀 양식 다운로드</CustomButton>
+                  <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv" className="hidden" />
+                  <CustomButton onClick={() => fileInputRef.current.click()} className="bg-gray-300 text-gray-800 hover:bg-gray-400">엑셀 업로드</CustomButton>
+                </div>
+                
+                {appData.gradeInputData.students.length > 0 && (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <CustomButton onClick={() => setCurrentStudentIndex(prev => Math.max(0, prev - 1))} disabled={currentStudentIndex === 0}>
+                        이전 학생
+                      </CustomButton>
+                      <span className="font-semibold">
+                        학생 {currentStudentIndex + 1} / {appData.gradeInputData.students.length}
+                      </span>
+                      <CustomButton onClick={() => setCurrentStudentIndex(prev => Math.min(appData.gradeInputData.students.length - 1, prev + 1))} disabled={currentStudentIndex === appData.gradeInputData.students.length - 1}>
+                        다음 학생
+                      </CustomButton>
+                    </div>
+
+                    <div className="p-4 border rounded-md space-y-2 bg-gray-50">
+                      <div className="flex gap-2">
+                        <label className="font-medium w-16 pt-2 text-gray-700">반:</label>
+                        <CustomInput
+                          value={appData.gradeInputData.students[currentStudentIndex]?.class || ''}
+                          onChange={(e) => handleUpdateStudentField(currentStudentIndex, 'class', e.target.value)}
+                          className="flex-1"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <label className="font-medium w-16 pt-2 text-gray-700">이름:</label>
+                        <CustomInput
+                          value={appData.gradeInputData.students[currentStudentIndex]?.name || ''}
+                          onChange={(e) => handleUpdateStudentField(currentStudentIndex, 'name', e.target.value)}
+                          className="flex-1"
+                        />
+                      </div>
+                      <h5 className="font-semibold mt-4 text-gray-800">과목별 점수/등급</h5>
+                      {selectedSemesterSubjects.map((subject, subjectIndex) => (
+                        <div key={subjectIndex} className="flex gap-2 items-center">
+                          <label className="font-medium w-32 text-gray-700">{subject.name} ({subject.units}단위):</label>
+                          {subject.type === 'Z-점수' ? (
+                            <CustomInput
+                              type="number"
+                              placeholder="점수 입력"
+                              value={appData.gradeInputData.students[currentStudentIndex]?.scores[subject.name]?.raw || ''}
+                              onChange={(e) => handleUpdateStudentScore(currentStudentIndex, subject.name, 'raw', e.target.value)}
+                              className="flex-1"
+                            />
+                          ) : (
+                            <CustomInput
+                              type="number"
+                              placeholder="등급 입력 (1-9)"
+                              min="1" max="9"
+                              value={appData.gradeInputData.students[currentStudentIndex]?.scores[subject.name]?.grade || ''}
+                              onChange={(e) => handleUpdateStudentScore(currentStudentIndex, subject.name, 'grade', e.target.value)}
+                              className="flex-1"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <CustomButton onClick={processGradeData} className="w-full mt-4 bg-sky-500 hover:bg-sky-600">
+                  데이터 처리 및 등급 산출
+                </CustomButton>
+              </>
+            ) : (
+              <p className="text-gray-500">
+                '과목 설정' 섹션에서 먼저 과목을 추가해주세요.
+              </p>
+            )}
+          </CustomCardContent>
+        </CustomCard>
+        
+        {/* Grade Results Section */}
+        <CustomCard>
+          <CustomCardHeader>
+            <CustomCardTitle>등급 산출 결과 ✨</CustomCardTitle>
+          </CustomCardHeader>
+          <CustomCardContent>
+            {appData.calculatedGrades && appData.calculatedGrades.length > 0 ? (
+              <>
+                <div className="mb-4 space-y-4">
+                  <div className="flex gap-2">
+                    <CustomSelect value={selectedResultsYear} onChange={(e) => setSelectedResultsYear(e.target.value)}>
+                      {allResultSemesters.map((s, i) => (
+                        <CustomSelectItem key={i} value={s.year}>{s.year}학년</CustomSelectItem>
+                      ))}
+                    </CustomSelect>
+                    <CustomSelect value={selectedResultsSemester} onChange={(e) => setSelectedResultsSemester(e.target.value)}>
+                      {allResultSemesters.map((s, i) => (
+                        <CustomSelectItem key={i} value={s.semester}>{s.semester}학기</CustomSelectItem>
+                      ))}
+                    </CustomSelect>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-between flex-wrap gap-2">
+                    <div className="flex gap-2 items-center w-full sm:w-auto">
+                      <label className="font-medium">반 선택:</label>
+                      <CustomSelect value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}>
+                        <CustomSelectItem value="전체">전체</CustomSelectItem>
+                        {allClassNames.map((className, index) => (
+                          <CustomSelectItem key={index} value={className}>{className}</CustomSelectItem>
+                        ))}
+                      </CustomSelect>
+                    </div>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <CustomButton
+                        className={`bg-gray-200 text-gray-800 hover:bg-gray-300 ${resultsViewMode === 'student' ? 'bg-sky-500 text-white hover:bg-sky-600' : ''}`}
+                        onClick={() => setResultsViewMode('student')}
+                      >
+                        학생별 보기
+                      </CustomButton>
+                      <CustomButton
+                        className={`bg-gray-200 text-gray-800 hover:bg-gray-300 ${resultsViewMode === 'class' ? 'bg-sky-500 text-white hover:bg-sky-600' : ''}`}
+                        onClick={() => setResultsViewMode('class')}
+                      >
+                        반별 요약 보기
+                      </CustomButton>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                    <CustomInput
+                      placeholder="반 또는 이름으로 검색..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="flex-1"
+                    />
+                    <CustomButton onClick={handleDownloadResults} className="bg-green-600 hover:bg-green-700">
+                      엑셀 다운로드
+                    </CustomButton>
+                  </div>
+                </div>
+                
+                {resultsViewMode === 'student' && filteredStudents.length > 0 && (
+                  <div className="flex flex-col gap-6">
+                    {filteredStudents.map((student) => {
+                      const uniGrades = calculateUniversityGrades(student.id);
+                      return (
+                        <div key={student.id} className="p-4 border rounded-lg bg-gray-50">
+                          <h3 className="text-xl font-bold mb-4 text-gray-900">{student.class}반 {student.name} 학생</h3>
+                          
+                          <div className="mb-6 space-y-4">
+                            <h4 className="font-semibold text-lg text-gray-800">대학별 성적</h4>
+                            <CustomCard className="p-4 bg-purple-50">
+                              <p className="mt-2 text-md">
+                                <span className="font-bold text-gray-800">A 대학 최종 등급: </span>
+                                <span className="font-semibold text-lg text-purple-700">
+                                  {uniGrades.a}
+                                </span>
+                              </p>
+                              <CustomCardDescription className="mt-2">
+                                (1학년 20%, 2학년 30%, 3학년 1학기 50% 반영)
+                              </CustomCardDescription>
+                              <p className="mt-4 text-md">
+                                <span className="font-bold text-gray-800">B 대학 최종 등급: </span>
+                                <span className="font-semibold text-lg text-purple-700">
+                                  {uniGrades.b}
+                                </span>
+                              </p>
+                              <CustomCardDescription className="mt-2">
+                                (1-2학년 최고 성적 2개 50%, 3학년 1학기 50% 반영)
+                              </CustomCardDescription>
+                            </CustomCard>
+                          </div>
+                          
+                          <h4 className="font-semibold text-lg text-gray-800 mb-2">학기별 상세 등급</h4>
+                          {appData.calculatedGrades.filter(s => s.students.find(st => st.id === student.id)).map((semesterData, index) => {
+                            const currentStudentData = semesterData.students.find(st => st.id === student.id);
+                            if (!currentStudentData) return null;
+                            return (
+                              <div key={index} className="mb-4">
+                                <CustomCard className="p-4 bg-pink-50">
+                                  <CustomCardDescription className="mb-2 text-pink-700">{semesterData.year}학년 {semesterData.semester}학기</CustomCardDescription>
+                                  <p className="font-bold">
+                                    총 학기 등급: <span className="text-lg text-pink-900">{currentStudentData.semesterGPA}</span>
+                                  </p>
+                                </CustomCard>
+                                <CustomTable className="mt-2">
+                                  <CustomTableHeader>
+                                    <CustomTableRow>
+                                      <CustomTableHead>과목명</CustomTableHead>
+                                      <CustomTableHead>점수</CustomTableHead>
+                                      <CustomTableHead>등급</CustomTableHead>
+                                    </CustomTableRow>
+                                  </CustomTableHeader>
+                                  <CustomTableBody>
+                                    {Object.entries(currentStudentData.scores).map(([subjectName, scoreData], scoreIndex) => (
+                                      <CustomTableRow key={scoreIndex}>
+                                        <CustomTableCell>{scoreData.name}</CustomTableCell>
+                                        <CustomTableCell>{scoreData.raw || '-'}</CustomTableCell>
+                                        <CustomTableCell>{scoreData.grade}</CustomTableCell>
+                                      </CustomTableRow>
+                                    ))}
+                                  </CustomTableBody>
+                                </CustomTable>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {resultsViewMode === 'class' && filteredStudents.length > 0 && (
+                  <CustomTable>
+                    <CustomTableHeader>
+                      <CustomTableRow>
+                        <CustomTableHead>반</CustomTableHead>
+                        <CustomTableHead>이름</CustomTableHead>
+                        {subjectsForSummary.map((subject, index) => (
+                          <CustomTableHead key={index}>{subject.name}</CustomTableHead>
+                        ))}
+                        <CustomTableHead>학기 총 등급</CustomTableHead>
+                        <CustomTableHead>A대학 등급</CustomTableHead>
+                        <CustomTableHead>B대학 등급</CustomTableHead>
+                      </CustomTableRow>
+                    </CustomTableHeader>
+                    <CustomTableBody>
+                      {filteredStudents.map(student => {
+                        const uniGrades = calculateUniversityGrades(student.id);
+                        return (
+                          <CustomTableRow key={student.id}>
+                            <CustomTableCell>{student.class}</CustomTableCell>
+                            <CustomTableCell>{student.name}</CustomTableCell>
+                            {subjectsForSummary.map((subject, index) => {
+                              const grade = student.scores[subject.name]?.grade || '-';
+                              return (
+                                <CustomTableCell key={index}>{grade}</CustomTableCell>
+                              );
+                            })}
+                            <CustomTableCell>{student.semesterGPA}</CustomTableCell>
+                            <CustomTableCell>{uniGrades.a}</CustomTableCell>
+                            <CustomTableCell>{uniGrades.b}</CustomTableCell>
+                          </CustomTableRow>
+                        );
+                      })}
+                    </CustomTableBody>
+                  </CustomTable>
+                )}
+                
+                {filteredStudents.length === 0 && (
+                  <p className="text-gray-500">
+                    선택된 반에 해당하는 학생 데이터가 없습니다.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-gray-500">
+                '성적 입력' 섹션에서 데이터를 입력하고 '데이터 처리 및 등급 산출' 버튼을 눌러주세요.
+              </p>
+            )}
+          </CustomCardContent>
+        </CustomCard>
+      </div>
+    </div>
+  );
+};
+
+export default App;
