@@ -463,9 +463,11 @@
     appId: "1:629818605979:web:2e358040352ec3e739613e",
     measurementId: "G-YRTRDR4YQM"
   };
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+   const appId = "default-app-id"; // 원하는 앱 ID로 변경해도 됩니다.
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
         let userEmail = null;
         let isAuthReady = false;
@@ -1415,4 +1417,5 @@
     </script>
 </body>
 </html>
+
 
