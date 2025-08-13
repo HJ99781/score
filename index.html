@@ -132,8 +132,8 @@
   };
    const appId = "default-app-id"; // 원하는 앱 ID로 변경해도 됩니다.
 
-    // appId 변수를 다시 추가합니다.
-    const appId = "default-app-id";
+   // Canvas 환경에서 제공하는 __app_id 변수를 사용합니다.
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const PUBLIC_DATA_PATH = `artifacts/${appId}/public/data`;
 
     // --- Firebase 초기화 ---
@@ -397,4 +397,5 @@
 </script>
 </body>
 </html>
+
 
