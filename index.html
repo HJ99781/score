@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firestore 과목 설정 예제</title>
-    <!-- Tailwind CSS 로딩 -->
+    <title>Firestore 로그인 및 데이터 처리</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter 폰트 로딩 -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <style>
         body {
@@ -30,21 +28,15 @@
             <button id="login-button" class="w-full bg-blue-600 text-white py-2 rounded-md font-semibold hover:bg-blue-700 transition-colors">로그인</button>
         </div>
 
-        <!-- 로그인 후 보여질 과목 설정 화면 -->
-        <div id="subject-settings-container" class="hidden mt-6">
-            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">과목 설정</h2>
-            <div class="mb-4">
-                <label for="subject-select" class="block text-gray-700 font-medium mb-2">과목 선택</label>
-                <select id="subject-select" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="none">과목을 선택하세요</option>
-                    <option value="korean">국어</option>
-                    <option value="english">영어</option>
-                    <option value="math">수학</option>
-                    <option value="science">과학</option>
-                </select>
+        <!-- 로그인 후 보여질 데이터 처리 화면 -->
+        <div id="data-container" class="hidden mt-6 text-center">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">로그인 성공! Firestore에 연결되었습니다.</h2>
+            <p class="text-gray-600 mb-6">아래 버튼을 눌러 Firestore에 데이터를 저장하고 읽어오는 것을 테스트해보세요.</p>
+            <div class="space-y-4">
+                <button id="write-button" class="w-full bg-green-600 text-white py-2 rounded-md font-semibold hover:bg-green-700 transition-colors">데이터 쓰기</button>
+                <button id="read-button" class="w-full bg-purple-600 text-white py-2 rounded-md font-semibold hover:bg-purple-700 transition-colors">데이터 읽기</button>
             </div>
-            <button id="save-subject-button" class="w-full bg-green-600 text-white py-2 rounded-md font-semibold hover:bg-green-700 transition-colors">설정 저장</button>
-            <p id="firestore-message" class="mt-4 text-center text-gray-700 font-medium break-words"></p>
+            <p id="firestore-message" class="mt-6 text-gray-700 font-medium break-words"></p>
         </div>
 
         <!-- 메시지 박스 -->
@@ -53,14 +45,13 @@
         </div>
     </div>
 
-    <!-- Firebase SDK 로딩 -->
     <script type="module">
-        // Import Firebase modules
+        // Firebase SDK imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase configuration from your previous information
+        // Firebase configuration (replace with your actual config)
         const firebaseConfig = {
             apiKey: "AIzaSyClRLOmDay20rQ4F0eOWT64vKCgSBTuido",
             authDomain: "score-c7b85.firebaseapp.com",
@@ -75,27 +66,21 @@
         let db;
         let auth;
         let isFirebaseInitialized = false;
-
-        // Initialize Firebase app
+        
+        // Initialize Firebase
         try {
-            if (firebaseConfig && firebaseConfig.projectId) {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                isFirebaseInitialized = true;
-                console.log("Firebase app initialized successfully.");
-            } else {
-                console.error("Firebase initialization failed: projectId not provided.");
-                document.getElementById('firestore-message').textContent = 'Error: Firebase project ID is not configured.';
-                document.getElementById('login-button').disabled = true;
-            }
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            isFirebaseInitialized = true;
+            console.log("Firebase app initialized successfully.");
         } catch (error) {
-            console.error("Error during Firebase initialization:", error);
-            document.getElementById('firestore-message').textContent = `Error: Firebase initialization failed. ${error.message}`;
+            console.error("Firebase initialization failed:", error);
+            document.getElementById('firestore-message').textContent = `오류: Firebase 초기화 실패. ${error.message}`;
             document.getElementById('login-button').disabled = true;
         }
 
-        // Authenticate the user with a custom token or anonymously
+        // Authenticate the user
         async function authenticateAndSetup() {
             if (!isFirebaseInitialized) return;
             try {
@@ -109,15 +94,15 @@
                 console.error("Firebase authentication failed:", error);
             }
         }
-        
+
         // Get DOM elements
         const loginContainer = document.getElementById('login-container');
-        const subjectSettingsContainer = document.getElementById('subject-settings-container');
+        const dataContainer = document.getElementById('data-container');
         const usernameInput = document.getElementById('username');
         const passwordInput = document.getElementById('password');
         const loginButton = document.getElementById('login-button');
-        const subjectSelect = document.getElementById('subject-select');
-        const saveSubjectButton = document.getElementById('save-subject-button');
+        const writeButton = document.getElementById('write-button');
+        const readButton = document.getElementById('read-button');
         const firestoreMessage = document.getElementById('firestore-message');
         const messageBox = document.getElementById('message-box');
         const messageText = document.getElementById('message-text');
@@ -141,9 +126,9 @@
             if (username === 'teacher' && password === '7400') {
                 showMessage('로그인 성공!');
                 
-                // Hide login form and show subject settings
+                // Hide login form and show data container
                 loginContainer.classList.add('hidden');
-                subjectSettingsContainer.classList.remove('hidden');
+                dataContainer.classList.remove('hidden');
                 
                 // Authenticate with Firebase for Firestore operations
                 await authenticateAndSetup();
@@ -152,36 +137,55 @@
             }
         });
 
-        // Save subject button event handler
-        saveSubjectButton.addEventListener('click', async () => {
+        // Write data button event handler
+        writeButton.addEventListener('click', async () => {
             if (!isFirebaseInitialized || !auth.currentUser) {
                 showMessage('Firebase가 초기화되지 않았거나 인증되지 않았습니다.', true);
                 return;
             }
             
-            const selectedSubject = subjectSelect.value;
-            if (selectedSubject === 'none') {
-                showMessage('과목을 선택해주세요.', true);
-                return;
-            }
-
             const userId = auth.currentUser.uid;
-            // Define the document path for subject settings
-            const docRef = doc(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/users/${userId}/my-settings/subject-info`);
+            const docRef = doc(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/users/${userId}/data/example-doc`);
             const data = {
-                subject: selectedSubject,
+                message: "Hello, Firestore!",
                 timestamp: new Date().toISOString()
             };
 
             try {
-                // Save the selected subject to Firestore
                 await setDoc(docRef, data);
-                showMessage('과목 설정 저장 성공!');
-                firestoreMessage.textContent = `선택된 과목: ${selectedSubject} (성공적으로 저장됨)`;
+                showMessage('데이터 쓰기 성공!');
+                firestoreMessage.textContent = '데이터가 성공적으로 Firestore에 저장되었습니다.';
             } catch (error) {
                 console.error("Error writing document: ", error);
-                showMessage('과목 설정 저장 실패.', true);
+                showMessage('데이터 쓰기 실패.', true);
                 firestoreMessage.textContent = `데이터 저장 오류: ${error.message}`;
+            }
+        });
+
+        // Read data button event handler
+        readButton.addEventListener('click', async () => {
+            if (!isFirebaseInitialized || !auth.currentUser) {
+                showMessage('Firebase가 초기화되지 않았거나 인증되지 않았습니다.', true);
+                return;
+            }
+
+            const userId = auth.currentUser.uid;
+            const docRef = doc(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/users/${userId}/data/example-doc`);
+
+            try {
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    showMessage('데이터 읽기 성공!');
+                    firestoreMessage.textContent = `Firestore에서 읽은 데이터: ${JSON.stringify(data, null, 2)}`;
+                } else {
+                    showMessage('데이터가 존재하지 않습니다.', true);
+                    firestoreMessage.textContent = "Firestore에 데이터가 없습니다. 먼저 '데이터 쓰기'를 시도해보세요.";
+                }
+            } catch (error) {
+                console.error("Error reading document: ", error);
+                showMessage('데이터 읽기 실패.', true);
+                firestoreMessage.textContent = `데이터 읽기 오류: ${error.message}`;
             }
         });
     </script>
