@@ -454,9 +454,15 @@
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- 1. Firebase 초기화 및 인증 (로그인 기능 추가) ---
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
+       const firebaseConfig = {
+    apiKey: "AIzaSyClRLOmDay20rQ4F0eOWT64vKCgSBTuido",
+    authDomain: "score-c7b85.firebaseapp.com",
+    projectId: "score-c7b85",
+    storageBucket: "score-c7b85.firebasestorage.app",
+    messagingSenderId: "629818605979",
+    appId: "1:629818605979:web:2e358040352ec3e739613e",
+    measurementId: "G-YRTRDR4YQM"
+  };
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -1409,3 +1415,4 @@
     </script>
 </body>
 </html>
+
