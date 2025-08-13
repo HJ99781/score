@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>공동 성적 확인 프로그램</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container, .login-container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            max-width: 900px;
+            width: 100%;
+        }
+        .login-container {
+            max-width: 400px;
+            text-align: center;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        h2 {
+            margin-top: 40px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .form-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        .form-section h3 {
+            color: #555;
+            margin-top: 0;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        .subject-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .subject-grid .subject-item {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #fff;
+        }
+        .subject-grid label {
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .subject-grid input {
+            margin-bottom: 10px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .button-group button {
+            flex: 1;
+            min-width: 150px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+        }
+        #clearForm {
+            background-color: #6c757d;
+        }
+        #clearForm:hover {
+            background-color: #5a6268;
+        }
+        .uni-button {
+            background-color: #ffc107;
+            color: #333;
+        }
+        .uni-button:hover {
+            background-color: #e0a800;
+            color: #fff;
+        }
+        .download-button {
+            background-color: #28a745;
+        }
+        .download-button:hover {
+            background-color: #218838;
+        }
+        #result, #searchResult, #universityResult {
+            margin-top: 40px;
+            padding: 20px;
+            background-color: #e9f5ff;
+            border-radius: 8px;
+            border: 1px solid #cce5ff;
+            display: none;
+        }
+        #result h3, #searchResult h3, #universityResult h3 {
+            color: #0056b3;
+        }
+        #searchForm button {
+            margin-top: 10px;
+            background-color: #28a745;
+        }
+        #searchForm button:hover {
+            background-color: #218838;
+        }
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .result-table th, .result-table td {
+            border: 1px solid #cce5ff;
+            padding: 12px;
+            text-align: center;
+        }
+        .result-table th {
+            background-color: #b3d9ff;
+            color: #004085;
+        }
+        .result-table td {
+            background-color: #fff;
+        }
+        .result-item {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        .result-item strong {
+            color: #004085;
+        }
+        .grade-highlight {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #d9534f;
+        }
+        .subject-add-form {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+        .subject-add-form .input-group {
+            flex-grow: 1;
+        }
+        .subject-add-form button {
+            padding: 12px 20px;
+            width: auto;
+            font-size: 16px;
+        }
+        .subject-type-radio label {
+            display: inline-block;
+            margin-right: 15px;
+        }
+        .current-subjects {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .current-subjects h4 {
+            margin-top: 0;
+        }
+        .subject-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .subject-list-item:last-child {
+            border-bottom: none;
+        }
+        .subject-list-item .remove-btn {
+            background-color: #dc3545;
+            color: #fff;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .subject-list-item .remove-btn:hover {
+            background-color: #c82333;
+        }
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-size: 1.5em;
+            color: #007bff;
+        }
+        .user-id-display {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            color: #555;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            word-wrap: break-word;
+        }
+        #logoutBtn {
+            background-color: #dc3545;
+            margin-top: 20px;
+        }
+        #logoutBtn:hover {
+            background-color: #c82333;
+        }
+        #messageBox {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background-color: #28a745;
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
+            display: none;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+        @keyframes fadein {
+            from { right: -300px; opacity: 0; }
+            to { right: 20px; opacity: 1; }
+        }
+        @keyframes fadeout {
+            from { right: 20px; opacity: 1; }
+            to { right: -300px; opacity: 0; }
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            .subject-grid {
+                grid-template-columns: 1fr;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            .button-group button {
+                width: 100%;
+            }
+            .subject-add-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .subject-add-form button {
+                width: 100%;
+            }
+        }
+    </style>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div id="loginPage" class="login-container">
+        <h1>로그인</h1>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">이메일:</label>
+                <input type="email" id="email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">비밀번호:</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit" id="signInBtn">로그인</button>
+            <button type="button" id="signUpBtn" style="margin-top: 10px; background-color: #17a2b8;">회원가입</button>
+        </form>
+    </div>
+
+    <div id="mainApp" class="container" style="display: none;">
+        <h1>성적 확인 프로그램 (공유 데이터)</h1>
+        <div class="user-id-display">
+            <strong>사용자 이메일:</strong> <span id="userEmailDisplay"></span><br>
+            <small>이 ID로 로그인한 모든 사용자가 동일한 데이터를 공유합니다.</small>
+            <button id="logoutBtn">로그아웃</button>
+        </div>
+
+        <!-- 엑셀 파일 업로드 섹션 -->
+        <div class="form-section">
+            <h2>엑셀로 성적 업로드</h2>
+            <p><strong>업로드 파일 양식:</strong> 첫 번째 행에 '학번', '학기', '과목명', '점수'(선택사항), '등급'(선택사항), '단위수' 헤더가 필요합니다.</p>
+            <div class="form-group">
+                <label for="excelFile">엑셀 파일 (.xlsx, .csv) 선택:</label>
+                <input type="file" id="excelFile" accept=".xlsx, .xls, .csv">
+            </div>
+        </div>
+
+        <!-- 학기 선택 -->
+        <div class="form-section">
+            <h2>학기 선택</h2>
+            <div class="form-group">
+                <label for="semesterSelector">학기:</label>
+                <select id="semesterSelector" name="semesterSelector" required>
+                    <option value="1학년 1학기">1학년 1학기</option>
+                    <option value="1학년 2학기">1학년 2학기</option>
+                    <option value="2학년 1학기">2학년 1학기</option>
+                    <option value="2학년 2학기">2학년 2학기</option>
+                    <option value="3학년 1학기">3학년 1학기</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- 과목 관리 및 추가 -->
+        <div class="form-section">
+            <h2>과목 관리 및 추가</h2>
+            <div class="subject-add-form">
+                <div class="input-group">
+                    <label for="newSubjectName">과목 이름:</label>
+                    <input type="text" id="newSubjectName" placeholder="예: 간호, 한국사" required>
+                </div>
+                <div class="input-group subject-type-radio">
+                    <label>과목 종류:</label>
+                    <input type="radio" id="typeGrade" name="subjectType" value="grade" checked>
+                    <label for="typeGrade">등급 입력</label>
+                    <input type="radio" id="typeZScore" name="subjectType" value="zscore">
+                    <label for="typeZScore">Z-점수</label>
+                </div>
+                <button type="button" id="addSubjectBtn">과목 추가</button>
+            </div>
+            <div class="current-subjects" id="currentSubjectsList">
+                <!-- 현재 학기의 과목 목록이 여기에 동적으로 표시됩니다. -->
+            </div>
+        </div>
+
+        <!-- 학기별 공통 과목 기준 설정 -->
+        <div class="form-section" id="semesterCommonInputs">
+            <h2>학기별 공통 과목 기준 설정</h2>
+            <!-- 이 부분은 JavaScript에 의해 동적으로 생성됩니다. -->
+        </div>
+
+        <!-- 학생별 성적 입력 및 확인 -->
+        <div class="form-section">
+            <h2>학생별 성적 입력 및 확인</h2>
+            <form id="gradeForm">
+                <div class="form-group">
+                    <label for="studentId">학번:</label>
+                    <input type="text" id="studentId" name="studentId" required>
+                </div>
+                
+                <div id="subjectInputs">
+                    <!-- 과목 입력 폼이 동적으로 생성될 곳 -->
+                </div>
+
+                <div class="button-group">
+                    <button type="submit">등급 확인</button>
+                    <button type="button" id="clearForm">새 학생 입력</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="result">
+            <h3>성적 확인 결과</h3>
+            <div id="resultContent"></div>
+        </div>
+
+        <hr>
+
+        <div class="form-section">
+            <h2>학생 데이터 검색</h2>
+            <form id="searchForm">
+                <div class="form-group">
+                    <label for="searchStudentId">검색할 학번:</label>
+                    <input type="text" id="searchStudentId" name="searchStudentId" required>
+                </div>
+                <button type="submit">검색</button>
+            </form>
+        </div>
+        
+        <div id="searchResult">
+            <h3>검색 결과</h3>
+            <div id="searchResultContent"></div>
+        </div>
+
+        <div class="form-section">
+            <h2>대학별 총 등급 산출</h2>
+            <div class="button-group">
+                <button type="button" class="uni-button" id="calculateUniA">A대학 총 등급 산출</button>
+                <button type="button" class="uni-button" id="calculateUniB">B대학 총 등급 산출</button>
+            </div>
+        </div>
+        
+        <div id="universityResult">
+            <h3>대학별 산출 결과</h3>
+            <div id="universityResultContent"></div>
+        </div>
+        
+        <hr>
+
+        <div class="form-section">
+            <h2>데이터 다운로드</h2>
+            <div class="button-group">
+                <button type="button" class="download-button" id="downloadAllStudentsBtn">모든 학생 데이터 다운로드 (.csv)</button>
+                <button type="button" class="download-button" id="downloadCurrentStudentBtn">현재 학생 데이터 다운로드 (.csv)</button>
+            </div>
+        </div>
+    </div>
+    <div id="loadingOverlay" class="loading-overlay">데이터 처리 중...</div>
+    <div id="messageBox"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 1. Firebase 초기화 및 인증 (로그인 기능 추가) ---
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let userEmail = null;
+        let isAuthReady = false;
+        
+        const PUBLIC_DATA_PATH = `artifacts/${appId}/public/data`;
+
+        const userEmailDisplay = document.getElementById('userEmailDisplay');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loginPage = document.getElementById('loginPage');
+        const mainApp = document.getElementById('mainApp');
+        const messageBox = document.getElementById('messageBox');
+        const excelFile = document.getElementById('excelFile');
+
+        // 사용자 인증 상태 변경을 감지하는 리스너
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userEmail = user.email;
+                userEmailDisplay.textContent = userEmail;
+                isAuthReady = true;
+                loginPage.style.display = 'none';
+                mainApp.style.display = 'block';
+                // 인증 후 실시간 데이터 리스너 설정
+                setupRealtimeListeners();
+            } else {
+                console.log("User signed out or not signed in.");
+                isAuthReady = false;
+                loginPage.style.display = 'block';
+                mainApp.style.display = 'none';
+            }
+        });
+
+        // 메시지 표시 함수 (alert 대신 사용)
+        function showMessage(text, isError = false) {
+            messageBox.textContent = text;
+            messageBox.style.backgroundColor = isError ? '#dc3545' : '#28a745';
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 3000);
+        }
+
+        // 로그인/회원가입 폼 이벤트 핸들러
+        const loginForm = document.getElementById('loginForm');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const signInBtn = document.getElementById('signInBtn');
+        const signUpBtn = document.getElementById('signUpBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                showMessage('로그인 성공!');
+            } catch (error) {
+                console.error("로그인 실패:", error);
+                if (error.code === 'auth/invalid-email') {
+                    showMessage('로그인 실패: 이메일 주소가 유효하지 않습니다.', true);
+                } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                    showMessage('로그인 실패: 이메일 또는 비밀번호가 올바르지 않습니다.', true);
+                } else {
+                    showMessage('로그인 실패: ' + error.message, true);
+                }
+            }
+        });
+
+        signUpBtn.addEventListener('click', async () => {
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                showMessage('회원가입 성공! 자동 로그인됩니다.');
+            } catch (error) {
+                console.error("회원가입 실패:", error);
+                if (error.code === 'auth/invalid-email') {
+                    showMessage('회원가입 실패: 이메일 주소가 유효하지 않습니다.', true);
+                } else if (error.code === 'auth/weak-password') {
+                    showMessage('회원가입 실패: 비밀번호는 6자 이상이어야 합니다.', true);
+                } else {
+                    showMessage('회원가입 실패: ' + error.message, true);
+                }
+            }
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                showMessage('로그아웃되었습니다.');
+            } catch (error) {
+                console.error("로그아웃 실패:", error);
+                showMessage('로그아웃 실패: ' + error.message, true);
+            }
+        });
+
+
+        // --- 2. 등급 계산 함수 ---
+        function calculateZScoreGrade(score, mean, stdDev) {
+            if (stdDev === 0) return 9;
+            const zScore = (score - mean) / stdDev;
+            
+            if (zScore >= 1.75) return 1;
+            if (zScore >= 1.25) return 2;
+            if (zScore >= 0.75) return 3;
+            if (zScore >= 0.25) return 4;
+            if (zScore >= -0.25) return 5;
+            if (zScore >= -0.75) return 6;
+            if (zScore >= -1.25) return 7;
+            if (zScore >= -1.75) return 8;
+            return 9;
+        }
+
+        function calculateSemesterGrade(grades, credits) {
+            let totalWeightedGrade = 0;
+            let totalCredits = 0;
+            for (const [subject, grade] of Object.entries(grades)) {
+                if (credits[subject]) {
+                    totalWeightedGrade += grade * credits[subject];
+                    totalCredits += credits[subject];
+                }
+            }
+            return totalCredits > 0 ? totalWeightedGrade / totalCredits : null;
+        }
+        
+        // --- 3. DOM 요소 및 이벤트 리스너 ---
+        const gradeForm = document.getElementById('gradeForm');
+        const searchForm = document.getElementById('searchForm');
+        const semesterSelector = document.getElementById('semesterSelector');
+        const semesterCommonInputsDiv = document.getElementById('semesterCommonInputs');
+        const subjectInputsDiv = document.getElementById('subjectInputs');
+        const resultDiv = document.getElementById('result');
+        const searchResultDiv = document.getElementById('searchResult');
+        const universityResultDiv = document.getElementById('universityResult');
+        const studentIdInput = document.getElementById('studentId');
+        const clearFormButton = document.getElementById('clearForm');
+        const calculateUniAButton = document.getElementById('calculateUniA');
+        const calculateUniBButton = document.getElementById('calculateUniB');
+        const addSubjectBtn = document.getElementById('addSubjectBtn');
+        const newSubjectNameInput = document.getElementById('newSubjectName');
+        const currentSubjectsListDiv = document.getElementById('currentSubjectsList');
+        const downloadAllStudentsBtn = document.getElementById('downloadAllStudentsBtn');
+        const downloadCurrentStudentBtn = document.getElementById('downloadCurrentStudentBtn');
+
+
+        // 초기 데이터 (Firestore에 데이터가 없을 경우 사용)
+        const INITIAL_SUBJECTS = {
+            '1학년 1학기': {
+                gradeSubjects: ['국어', '수학', '영어', '사회', '과학', '정보'],
+                zScoreSubjects: ['간호', '임상', '인체']
+            },
+            '1학년 2학기': {
+                gradeSubjects: ['국어', '수학', '영어', '사회', '과학', '정보'],
+                zScoreSubjects: ['간호', '임상', '인체']
+            },
+            '2학년 1학기': {
+                gradeSubjects: ['국어', '영어', '한국사'],
+                zScoreSubjects: ['인공', '임상', '보건', '간호', '선택']
+            },
+            '2학년 2학기': {
+                gradeSubjects: ['국어', '수학', '영어', '사회', '과학', '정보'],
+                zScoreSubjects: ['간호', '임상', '인체']
+            },
+            '3학년 1학기': {
+                gradeSubjects: ['국어', '수학', '영어', '사회', '과학', '정보'],
+                zScoreSubjects: ['간호', '임상', '인체']
+            }
+        };
+
+        const INITIAL_DEFAULTS = {
+            credits: {
+                '국어': 4, '수학': 4, '영어': 4, '사회': 3, '과학': 3, '정보': 2, '한국사': 3,
+                '간호': 5, '임상': 5, '인체': 5, '인공': 3, '보건': 2, '선택': 2
+            },
+            zScoreCriteria: {
+                '간호': { 평균: 80, 표준편차: 10 },
+                '임상': { 평균: 75, 표준편차: 8 },
+                '인체': { 평균: 85, 표준편차: 12 },
+                '인공': { 평균: 82, 표준편차: 9 },
+                '보건': { 평균: 78, 표준편차: 7 },
+                '선택': { 평균: 88, 표준편차: 11 }
+            }
+        };
+
+        // Firebase 데이터 저장을 위한 전역 상태
+        let commonData = {};
+        let allSubjects = {};
+        let studentsData = {};
+
+        // --- 4. Firestore 데이터 함수 ---
+        // 모든 사용자가 공유하는 public 경로를 사용합니다.
+        async function saveCommonData(semester, data) {
+            if (!isAuthReady) return;
+            const docRef = doc(db, `${PUBLIC_DATA_PATH}/commonData`, semester);
+            await setDoc(docRef, data);
+        }
+
+        async function loadCommonData(semester) {
+            if (!isAuthReady) return {};
+            const docRef = doc(db, `${PUBLIC_DATA_PATH}/commonData`, semester);
+            const docSnap = await getDoc(docRef);
+            return docSnap.exists() ? docSnap.data() : {};
+        }
+
+        async function saveStudentData(studentId, semester, data) {
+            if (!isAuthReady) return;
+            const docRef = doc(db, `${PUBLIC_DATA_PATH}/studentsData`, studentId);
+            const studentDoc = (await getDoc(docRef)).data() || {};
+            studentDoc[semester] = data;
+            await setDoc(docRef, studentDoc);
+        }
+        
+        async function loadStudentData(studentId) {
+            if (!isAuthReady) return null;
+            const docRef = doc(db, `${PUBLIC_DATA_PATH}/studentsData`, studentId);
+            const docSnap = await getDoc(docRef);
+            return docSnap.exists() ? docSnap.data() : null;
+        }
+
+        async function saveSubjects(semester, subjects) {
+            if (!isAuthReady) return;
+            const docRef = doc(db, `${PUBLIC_DATA_PATH}/allSubjects`, semester);
+            await setDoc(docRef, subjects);
+        }
+        
+        async function loadSubjects(semester) {
+            if (!isAuthReady) return INITIAL_SUBJECTS[semester] || { gradeSubjects: [], zScoreSubjects: [] };
+            const docRef = doc(db, `${PUBLIC_DATA_PATH}/allSubjects`, semester);
+            const docSnap = await getDoc(docRef);
+            if (!docSnap.exists()) {
+                // Firestore에 커스텀 과목이 없으면 초기 과목을 사용하고 저장합니다.
+                await saveSubjects(semester, INITIAL_SUBJECTS[semester]);
+                return INITIAL_SUBJECTS[semester];
+            }
+            return docSnap.data();
+        }
+
+        // --- 5. 실시간 리스너 설정 ---
+        function setupRealtimeListeners() {
+             const commonCollectionRef = collection(db, `${PUBLIC_DATA_PATH}/commonData`);
+             const subjectsCollectionRef = collection(db, `${PUBLIC_DATA_PATH}/allSubjects`);
+             const studentsCollectionRef = collection(db, `${PUBLIC_DATA_PATH}/studentsData`);
+
+             onSnapshot(commonCollectionRef, (snapshot) => {
+                 snapshot.docChanges().forEach((change) => {
+                     if (change.type === "added" || change.type === "modified") {
+                         commonData[change.doc.id] = change.doc.data();
+                     } else if (change.type === "removed") {
+                         delete commonData[change.doc.id];
+                     }
+                 });
+                 renderInputs();
+             });
+             
+             onSnapshot(subjectsCollectionRef, (snapshot) => {
+                 snapshot.docChanges().forEach((change) => {
+                     if (change.type === "added" || change.type === "modified") {
+                         allSubjects[change.doc.id] = change.doc.data();
+                     } else if (change.type === "removed") {
+                         delete allSubjects[change.doc.id];
+                     }
+                 });
+                 renderInputs();
+             });
+
+             onSnapshot(studentsCollectionRef, (snapshot) => {
+                 snapshot.docChanges().forEach((change) => {
+                     if (change.type === "added" || change.type === "modified") {
+                         studentsData[change.doc.id] = change.doc.data();
+                     } else if (change.type === "removed") {
+                         delete studentsData[change.doc.id];
+                     }
+                 });
+                 // 현재 입력된 학생의 데이터가 업데이트되면 UI를 다시 렌더링
+                 const activeStudentId = studentIdInput.value;
+                 if (studentsData[activeStudentId]) {
+                    renderInputs();
+                    displayAllSemesters(activeStudentId, 'result');
+                 }
+             });
+        }
+
+
+        // --- 6. UI 렌더링 ---
+        async function renderInputs() {
+            loadingOverlay.style.display = 'flex';
+            if (!isAuthReady) {
+                 await new Promise(resolve => setTimeout(resolve, 500)); // 인증 대기
+                 if (!isAuthReady) {
+                     loadingOverlay.style.display = 'none';
+                     return;
+                 }
+            }
+
+            const semester = semesterSelector.value;
+            const subjects = allSubjects[semester] || INITIAL_SUBJECTS[semester];
+            const { gradeSubjects, zScoreSubjects } = subjects;
+            const allSubjectNames = [...gradeSubjects, ...zScoreSubjects];
+            
+            const currentCommonData = commonData[semester] || {};
+            const credits = currentCommonData.credits || {};
+            const zScoreCriteria = currentCommonData.zScoreCriteria || {};
+
+            // 1. 현재 과목 목록 렌더링
+            currentSubjectsListDiv.innerHTML = '<h4>현재 과목 목록</h4>';
+            if (allSubjectNames.length === 0) {
+                currentSubjectsListDiv.innerHTML += '<p>추가된 과목이 없습니다.</p>';
+            } else {
+                allSubjectNames.forEach(subject => {
+                    const subjectType = gradeSubjects.includes(subject) ? '등급' : 'Z-점수';
+                    const item = document.createElement('div');
+                    item.className = 'subject-list-item';
+                    item.innerHTML = `
+                        <span>${subject} (${subjectType})</span>
+                        <button class="remove-btn" data-subject="${subject}">삭제</button>
+                    `;
+                    currentSubjectsListDiv.appendChild(item);
+                });
+            }
+
+            // 2. 공통 과목 기준 입력란 렌더링
+            semesterCommonInputsDiv.innerHTML = `
+                <h3>단위수 설정</h3>
+                <div class="subject-grid" id="commonCreditInputs"></div>
+                <h3>Z-점수 과목 기준 설정</h3>
+                <div class="subject-grid" id="commonZScoreInputs"></div>
+            `;
+            const commonCreditGrid = document.getElementById('commonCreditInputs');
+            const commonZScoreGrid = document.getElementById('commonZScoreInputs');
+
+            allSubjectNames.forEach(subject => {
+                const creditItem = document.createElement('div');
+                creditItem.className = 'subject-item';
+                const creditValue = credits[subject] || INITIAL_DEFAULTS.credits[subject] || '';
+                creditItem.innerHTML = `
+                    <label for="common_credit_${subject}">${subject} 단위수:</label>
+                    <input type="number" id="common_credit_${subject}" name="common_credit_${subject}" value="${creditValue}" min="1" required>
+                `;
+                commonCreditGrid.appendChild(creditItem);
+
+                if (zScoreSubjects.includes(subject)) {
+                    const zScoreItem = document.createElement('div');
+                    zScoreItem.className = 'subject-item';
+                    const meanValue = zScoreCriteria[subject]?.평균 || INITIAL_DEFAULTS.zScoreCriteria[subject]?.평균 || '';
+                    const stdDevValue = zScoreCriteria[subject]?.표준편차 || INITIAL_DEFAULTS.zScoreCriteria[subject]?.표준편차 || '';
+                    zScoreItem.innerHTML = `
+                        <label for="common_mean_${subject}">${subject} 평균:</label>
+                        <input type="number" id="common_mean_${subject}" name="common_mean_${subject}" value="${meanValue}" step="0.01">
+                        <label for="common_stdDev_${subject}">${subject} 표준편차:</label>
+                        <input type="number" id="${subject}_stdDev_${subject}" name="common_stdDev_${subject}" value="${stdDevValue}" step="0.01">
+                    `;
+                    commonZScoreGrid.appendChild(zScoreItem);
+                }
+            });
+
+            // 3. 학생별 성적 입력란 렌더링
+            const studentId = studentIdInput.value;
+            const studentDataForId = studentsData[studentId] || {};
+            const semesterData = studentDataForId[semester] || {};
+            
+            subjectInputsDiv.innerHTML = '';
+            
+            const gradeInputs = document.createElement('div');
+            gradeInputs.className = 'form-section';
+            gradeInputs.innerHTML = '<h3>등급 입력 과목</h3><div class="subject-grid"></div>';
+            
+            const scoreInputs = document.createElement('div');
+            scoreInputs.className = 'form-section';
+            scoreInputs.innerHTML = '<h3>점수 입력 과목</h3><div class="subject-grid"></div>';
+            
+            gradeSubjects.forEach(subject => {
+                const subjectItem = document.createElement('div');
+                subjectItem.className = 'subject-item';
+                const savedGrade = semesterData[`${subject}_등급`] || '';
+                subjectItem.innerHTML = `
+                    <label for="${subject}_grade">${subject} 등급 (1-9):</label>
+                    <input type="number" id="${subject}_grade" name="${subject}_grade" min="1" max="9" value="${savedGrade}" required>
+                `;
+                gradeInputs.querySelector('.subject-grid').appendChild(subjectItem);
+            });
+
+            zScoreSubjects.forEach(subject => {
+                const subjectItem = document.createElement('div');
+                subjectItem.className = 'subject-item';
+                const savedScore = semesterData[`${subject}_점수`] || '';
+                subjectItem.innerHTML = `
+                    <label for="${subject}_score">${subject} 점수:</label>
+                    <input type="number" id="${subject}_score" name="${subject}_score" step="0.01" value="${savedScore}" required>
+                `;
+                scoreInputs.querySelector('.subject-grid').appendChild(subjectItem);
+            });
+
+            if (gradeInputs.querySelector('.subject-grid').children.length > 0) {
+                 subjectInputsDiv.appendChild(gradeInputs);
+            }
+            if (scoreInputs.querySelector('.subject-grid').children.length > 0) {
+                subjectInputsDiv.appendChild(scoreInputs);
+            }
+            loadingOverlay.style.display = 'none';
+        }
+
+        // --- 7. 과목 추가/삭제 이벤트 핸들러 ---
+        addSubjectBtn.addEventListener('click', async () => {
+            const semester = semesterSelector.value;
+            const newSubjectName = newSubjectNameInput.value.trim();
+            const subjectType = document.querySelector('input[name="subjectType"]:checked').value;
+
+            if (!newSubjectName) {
+                showMessage('과목 이름을 입력해주세요.', true);
+                return;
+            }
+            
+            const subjects = allSubjects[semester] || INITIAL_SUBJECTS[semester];
+            const allSubjectNames = [...subjects.gradeSubjects, ...subjects.zScoreSubjects];
+            if (allSubjectNames.includes(newSubjectName)) {
+                showMessage('이미 존재하는 과목입니다.', true);
+                return;
+            }
+
+            const newSubjects = { ...subjects };
+            if (subjectType === 'grade') {
+                newSubjects.gradeSubjects = [...newSubjects.gradeSubjects, newSubjectName];
+            } else {
+                newSubjects.zScoreSubjects = [...newSubjects.zScoreSubjects, newSubjectName];
+            }
+            
+            await saveSubjects(semester, newSubjects);
+            newSubjectNameInput.value = '';
+        });
+
+        currentSubjectsListDiv.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('remove-btn')) {
+                const subjectToRemove = e.target.dataset.subject;
+                const semester = semesterSelector.value;
+                const subjects = allSubjects[semester];
+
+                const newSubjects = {
+                    gradeSubjects: subjects.gradeSubjects.filter(s => s !== subjectToRemove),
+                    zScoreSubjects: subjects.zScoreSubjects.filter(s => s !== subjectToRemove)
+                };
+                
+                await saveSubjects(semester, newSubjects);
+            }
+        });
+
+        semesterSelector.addEventListener('change', renderInputs);
+        studentIdInput.addEventListener('input', renderInputs);
+
+
+        // --- 8. 폼 제출 및 검색 이벤트 핸들러 ---
+        gradeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const studentId = studentIdInput.value;
+            const semester = semesterSelector.value;
+            const subjects = allSubjects[semester] || INITIAL_SUBJECTS[semester];
+            const { gradeSubjects, zScoreSubjects } = subjects;
+            const allSubjectNames = [...gradeSubjects, ...zScoreSubjects];
+            
+            // 1. 공통 기준 데이터 수집 및 저장
+            const semesterCredits = {};
+            const zScoreCriteria = {};
+            allSubjectNames.forEach(subject => {
+                const creditInput = document.getElementById(`common_credit_${subject}`);
+                if (creditInput) {
+                    semesterCredits[subject] = parseInt(creditInput.value);
+                }
+                if (zScoreSubjects.includes(subject)) {
+                    const meanInput = document.getElementById(`common_mean_${subject}`);
+                    const stdDevInput = document.getElementById(`common_stdDev_${subject}`);
+                    if (meanInput && stdDevInput) {
+                        zScoreCriteria[subject] = {
+                            평균: parseFloat(meanInput.value),
+                            표준편차: parseFloat(stdDevInput.value)
+                        };
+                    }
+                }
+            });
+            await saveCommonData(semester, { credits: semesterCredits, zScoreCriteria: zScoreCriteria });
+            
+            // 2. 학생별 성적 데이터 수집 및 등급 계산
+            const semesterData = {};
+            const semesterGrades = {};
+            semesterData.credits = semesterCredits;
+            semesterData.zScoreCriteria = zScoreCriteria;
+
+            allSubjectNames.forEach(subject => {
+                if (gradeSubjects.includes(subject)) {
+                    const grade = parseInt(document.getElementById(`${subject}_grade`).value);
+                    semesterData[`${subject}_등급`] = grade;
+                    semesterGrades[subject] = grade;
+                } else if (zScoreSubjects.includes(subject)) {
+                    const score = parseFloat(document.getElementById(`${subject}_score`).value);
+                    const { 평균, 표준편차 } = zScoreCriteria[subject] || { 평균: 0, 표준편차: 1 };
+                    const grade = calculateZScoreGrade(score, 평균, 표준편차);
+                    semesterData[`${subject}_점수`] = score;
+                    semesterData[`${subject}_등급`] = grade;
+                    semesterGrades[subject] = grade;
+                }
+            });
+
+            const totalGrade = calculateSemesterGrade(semesterGrades, semesterCredits);
+            if (totalGrade !== null) {
+                semesterData[`총등급`] = totalGrade.toFixed(2);
+            }
+            
+            await saveStudentData(studentId, semester, semesterData);
+            displayResult(studentId);
+        });
+
+        searchForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const searchStudentId = document.getElementById('searchStudentId').value;
+            const studentData = studentsData[searchStudentId];
+            
+            if (studentData) {
+                studentIdInput.value = searchStudentId;
+                renderInputs();
+                displaySearchResult(searchStudentId);
+            } else {
+                searchResultDiv.style.display = 'block';
+                document.getElementById('searchResultContent').innerHTML = `
+                    <p><strong>${searchStudentId}</strong> 학번에 해당하는 데이터가 없습니다.</p>
+                `;
+            }
+        });
+
+        clearFormButton.addEventListener('click', () => {
+            gradeForm.reset();
+            studentIdInput.value = '';
+            renderInputs();
+            resultDiv.style.display = 'none';
+            searchResultDiv.style.display = 'none';
+            universityResultDiv.style.display = 'none';
+        });
+
+
+        // --- 9. 대학별 등급 산출 함수 ---
+        function calculateUniversityA() {
+            const studentId = studentIdInput.value || document.getElementById('searchStudentId').value;
+            if (!studentId) {
+                showMessage('총 등급을 산출할 학생을 먼저 입력하거나 검색해주세요.', true);
+                return;
+            }
+            const studentData = studentsData[studentId];
+            if (!studentData) {
+                showMessage('해당 학생의 저장된 데이터가 없습니다.', true);
+                return;
+            }
+
+            let totalWeightedGrade = 0;
+            let totalWeight = 0;
+            let resultText = `<p class="result-item"><strong>A대학 반영 비율:</strong> 1학년 20%, 2학년 30%, 3학년 1학기 50%</p>`;
+            
+            const firstYear1 = parseFloat(studentData['1학년 1학기']?.총등급);
+            const firstYear2 = parseFloat(studentData['1학년 2학기']?.총등급);
+            const secondYear1 = parseFloat(studentData['2학년 1학기']?.총등급);
+            const secondYear2 = parseFloat(studentData['2학년 2학기']?.총등급);
+            const thirdYear1 = parseFloat(studentData['3학년 1학기']?.총등급);
+
+            let firstYearGrade = null;
+            if (!isNaN(firstYear1) && !isNaN(firstYear2)) {
+                firstYearGrade = (firstYear1 + firstYear2) / 2;
+                totalWeightedGrade += firstYearGrade * 0.2;
+                totalWeight += 0.2;
+                resultText += `<p class="result-item"><strong>1학년 총 등급:</strong> ${firstYearGrade.toFixed(2)} (${(0.2 * 100).toFixed(0)}% 반영)</p>`;
+            } else if (!isNaN(firstYear1)) {
+                firstYearGrade = firstYear1;
+                totalWeightedGrade += firstYearGrade * 0.2;
+                totalWeight += 0.2;
+                resultText += `<p class="result-item"><strong>1학년 1학기 등급:</strong> ${firstYearGrade.toFixed(2)} (${(0.2 * 100).toFixed(0)}% 반영)</p>`;
+            } else if (!isNaN(firstYear2)) {
+                firstYearGrade = firstYear2;
+                totalWeightedGrade += firstYearGrade * 0.2;
+                totalWeight += 0.2;
+                resultText += `<p class="result-item"><strong>1학년 2학기 등급:</strong> ${firstYearGrade.toFixed(2)} (${(0.2 * 100).toFixed(0)}% 반영)</p>`;
+            }
+
+            let secondYearGrade = null;
+            if (!isNaN(secondYear1) && !isNaN(secondYear2)) {
+                secondYearGrade = (secondYear1 + secondYear2) / 2;
+                totalWeightedGrade += secondYearGrade * 0.3;
+                totalWeight += 0.3;
+                resultText += `<p class="result-item"><strong>2학년 총 등급:</strong> ${secondYearGrade.toFixed(2)} (${(0.3 * 100).toFixed(0)}% 반영)</p>`;
+            } else if (!isNaN(secondYear1)) {
+                secondYearGrade = secondYear1;
+                totalWeightedGrade += secondYearGrade * 0.3;
+                totalWeight += 0.3;
+                resultText += `<p class="result-item"><strong>2학년 1학기 등급:</strong> ${secondYearGrade.toFixed(2)} (${(0.3 * 100).toFixed(0)}% 반영)</p>`;
+            } else if (!isNaN(secondYear2)) {
+                secondYearGrade = secondYear2;
+                totalWeightedGrade += secondYearGrade * 0.3;
+                totalWeight += 0.3;
+                resultText += `<p class="result-item"><strong>2학년 2학기 등급:</strong> ${secondYearGrade.toFixed(2)} (${(0.3 * 100).toFixed(0)}% 반영)</p>`;
+            }
+
+            if (!isNaN(thirdYear1)) {
+                totalWeightedGrade += thirdYear1 * 0.5;
+                totalWeight += 0.5;
+                resultText += `<p class="result-item"><strong>3학년 1학기 등급:</strong> ${thirdYear1.toFixed(2)} (${(0.5 * 100).toFixed(0)}% 반영)</p>`;
+            }
+
+            let finalGrade = 0;
+            if (totalWeight > 0) {
+                finalGrade = (totalWeightedGrade / totalWeight).toFixed(2);
+            }
+            
+            resultText += `<p class="result-item"><strong class="grade-highlight">A대학 최종 총 등급:</strong> ${finalGrade}</p>`;
+            document.getElementById('universityResultContent').innerHTML = resultText;
+            universityResultDiv.style.display = 'block';
+        }
+
+        function calculateUniversityB() {
+            const studentId = studentIdInput.value || document.getElementById('searchStudentId').value;
+            if (!studentId) {
+                showMessage('총 등급을 산출할 학생을 먼저 입력하거나 검색해주세요.', true);
+                return;
+            }
+            const studentData = studentsData[studentId];
+            if (!studentData) {
+                showMessage('해당 학생의 저장된 데이터가 없습니다.', true);
+                return;
+            }
+
+            let bestEarlyGrade = Infinity;
+            let earlyGradeText = '1~2학년 학기 등급 데이터 없음';
+            const earlyGrades = [
+                parseFloat(studentData['1학년 1학기']?.총등급),
+                parseFloat(studentData['1학년 2학기']?.총등급),
+                parseFloat(studentData['2학년 1학기']?.총등급),
+                parseFloat(studentData['2학년 2학기']?.총등급)
+            ].filter(g => !isNaN(g));
+            
+            if (earlyGrades.length > 0) {
+                bestEarlyGrade = Math.min(...earlyGrades);
+                earlyGradeText = `1~2학년 중 최고 등급: ${bestEarlyGrade.toFixed(2)}`;
+            }
+
+            const thirdYear1 = parseFloat(studentData['3학년 1학기']?.총등급);
+
+            let finalGrade = 0;
+            let resultText = `<p class="result-item"><strong>B대학 반영 비율:</strong> 1,2학년 중 최고 등급 50%, 3학년 1학기 50%</p>`;
+            resultText += `<p class="result-item">${earlyGradeText}</p>`;
+            
+            if (!isNaN(thirdYear1)) {
+                resultText += `<p class="result-item"><strong>3학년 1학기 등급:</strong> ${thirdYear1.toFixed(2)}</p>`;
+                if (earlyGrades.length > 0) {
+                    finalGrade = (bestEarlyGrade * 0.5 + thirdYear1 * 0.5).toFixed(2);
+                } else {
+                    finalGrade = thirdYear1.toFixed(2);
+                }
+            } else {
+                if (earlyGrades.length > 0) {
+                    finalGrade = bestEarlyGrade.toFixed(2);
+                } else {
+                    resultText += `<p class="result-item">산출에 필요한 등급 데이터가 부족합니다.</p>`;
+                }
+            }
+            
+            if (finalGrade > 0) {
+                resultText += `<p class="result-item"><strong class="grade-highlight">B대학 최종 총 등급:</strong> ${finalGrade}</p>`;
+            }
+            
+            document.getElementById('universityResultContent').innerHTML = resultText;
+            universityResultDiv.style.display = 'block';
+        }
+
+        calculateUniAButton.addEventListener('click', calculateUniversityA);
+        calculateUniBButton.addEventListener('click', calculateUniversityB);
+
+
+        // --- 10. 결과 표시 함수 (전체 학기 등급 포함) ---
+        function displayAllSemesters(studentId, containerId) {
+            const studentData = studentsData[studentId];
+            if (!studentData) {
+                document.getElementById(containerId).style.display = 'none';
+                return;
+            }
+
+            const contentDiv = document.getElementById(containerId + 'Content');
+            contentDiv.innerHTML = '';
+            
+            contentDiv.innerHTML += `<p class="result-item"><strong>학번:</strong> ${studentId}</p>`;
+            
+            // 총 등급을 표로 표시
+            let semesterTableHTML = `
+                <table class="result-table">
+                    <thead>
+                        <tr>
+                            <th>학기</th>
+                            <th>총 등급</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            const totalGrades = {};
+            let hasTotalGrades = false;
+            const allSemesters = [ '1학년 1학기', '1학년 2학기', '2학년 1학기', '2학년 2학기', '3학년 1학기' ];
+            allSemesters.forEach(semester => {
+                if (studentData[semester] && studentData[semester]['총등급']) {
+                    totalGrades[semester] = studentData[semester]['총등급'];
+                    hasTotalGrades = true;
+                }
+            });
+
+            if (hasTotalGrades) {
+                allSemesters.forEach(semester => {
+                    if (totalGrades[semester]) {
+                        semesterTableHTML += `
+                            <tr>
+                                <td>${semester}</td>
+                                <td>${totalGrades[semester]}</td>
+                            </tr>
+                        `;
+                    }
+                });
+                semesterTableHTML += `</tbody></table>`;
+                contentDiv.innerHTML += semesterTableHTML;
+            }
+
+            // 개별 과목 등급을 목록으로 표시
+            contentDiv.innerHTML += `<br/><h4>세부 성적</h4>`;
+            allSemesters.forEach(semester => {
+                if (studentData[semester]) {
+                    const subjects = allSubjects[semester] || INITIAL_SUBJECTS[semester];
+                    const allSubjectNames = [...subjects.gradeSubjects, ...subjects.zScoreSubjects];
+                    
+                    contentDiv.innerHTML += `<h5>${semester}</h5>`;
+                    
+                    if (studentData[semester].credits && allSubjectNames) {
+                         allSubjectNames.forEach(subject => {
+                            const gradeValue = studentData[semester][`${subject}_등급`];
+                            const scoreValue = studentData[semester][`${subject}_점수`];
+                            const creditValue = studentData[semester].credits[subject];
+
+                            if (gradeValue) {
+                                let subjectDetail = `<strong>${subject}:</strong> 등급 ${gradeValue}, 단위수 ${creditValue}`;
+                                if (scoreValue) {
+                                    subjectDetail = `<strong>${subject}:</strong> 점수 ${scoreValue}, 등급 ${gradeValue}, 단위수 ${creditValue}`;
+                                }
+                                contentDiv.innerHTML += `<p class="result-item">${subjectDetail}</p>`;
+                            }
+                        });
+                    }
+                }
+            });
+            
+            document.getElementById(containerId).style.display = 'block';
+        }
+
+        function displayResult(studentId) {
+            displayAllSemesters(studentId, 'result');
+            searchResultDiv.style.display = 'none';
+            universityResultDiv.style.display = 'none';
+        }
+
+        function displaySearchResult(studentId) {
+            displayAllSemesters(studentId, 'searchResult');
+            resultDiv.style.display = 'none';
+            universityResultDiv.style.display = 'none';
+        }
+
+        // --- 11. CSV 다운로드 기능 추가 ---
+        function downloadCSV(data, filename) {
+            const csvData = new Blob([data], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(csvData);
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        downloadAllStudentsBtn.addEventListener('click', () => {
+            if (Object.keys(studentsData).length === 0) {
+                showMessage('다운로드할 학생 데이터가 없습니다.', true);
+                return;
+            }
+            
+            // CSV 헤더 생성
+            let headers = ['학번', '학기', '총등급', '과목', '과목_타입', '점수', '등급', '단위수'];
+            let csv = headers.join(',') + '\n';
+
+            // 모든 학생 데이터를 반복하여 CSV 내용 생성
+            for (const studentId of Object.keys(studentsData)) {
+                for (const semester of Object.keys(studentsData[studentId])) {
+                    const semesterData = studentsData[studentId][semester];
+                    const totalGrade = semesterData.총등급 || '';
+                    
+                    const subjectsInSemester = allSubjects[semester] || INITIAL_SUBJECTS[semester];
+                    const allSubjectNames = [...subjectsInSemester.gradeSubjects, ...subjectsInSemester.zScoreSubjects];
+                    
+                    allSubjectNames.forEach(subject => {
+                        const grade = semesterData[`${subject}_등급`] || '';
+                        const score = semesterData[`${subject}_점수`] || '';
+                        const credit = semesterData.credits[subject] || '';
+                        const subjectType = subjectsInSemester.zScoreSubjects.includes(subject) ? 'Z-점수' : '등급';
+                        
+                        // 각 과목별로 한 줄씩 CSV에 추가
+                        csv += `${studentId},${semester},${totalGrade},${subject},${subjectType},${score},${grade},${credit}\n`;
+                    });
+                }
+            }
+
+            downloadCSV(csv, `전체_학생_성적_데이터_${new Date().toISOString().slice(0,10)}.csv`);
+        });
+
+        downloadCurrentStudentBtn.addEventListener('click', () => {
+            const studentId = studentIdInput.value;
+            if (!studentId || !studentsData[studentId]) {
+                showMessage('다운로드할 현재 학생 데이터가 없거나 학번이 입력되지 않았습니다.', true);
+                return;
+            }
+
+            // CSV 헤더 생성
+            let headers = ['학번', '학기', '총등급', '과목', '과목_타입', '점수', '등급', '단위수'];
+            let csv = headers.join(',') + '\n';
+
+            // 현재 학생 데이터만 반복하여 CSV 내용 생성
+            for (const semester of Object.keys(studentsData[studentId])) {
+                const semesterData = studentsData[studentId][semester];
+                const totalGrade = semesterData.총등급 || '';
+
+                const subjectsInSemester = allSubjects[semester] || INITIAL_SUBJECTS[semester];
+                const allSubjectNames = [...subjectsInSemester.gradeSubjects, ...subjectsInSemester.zScoreSubjects];
+                
+                allSubjectNames.forEach(subject => {
+                    const grade = semesterData[`${subject}_등급`] || '';
+                    const score = semesterData[`${subject}_점수`] || '';
+                    const credit = semesterData.credits[subject] || '';
+                    const subjectType = subjectsInSemester.zScoreSubjects.includes(subject) ? 'Z-점수' : '등급';
+                    
+                    csv += `${studentId},${semester},${totalGrade},${subject},${subjectType},${score},${grade},${credit}\n`;
+                });
+            }
+            
+            downloadCSV(csv, `${studentId}_성적_데이터_${new Date().toISOString().slice(0,10)}.csv`);
+        });
+        
+        // --- 12. 엑셀 파일 업로드 기능 ---
+        excelFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            loadingOverlay.style.display = 'flex';
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (!json || json.length === 0) {
+                        showMessage('엑셀 파일에 데이터가 없습니다.', true);
+                        loadingOverlay.style.display = 'none';
+                        return;
+                    }
+
+                    // 데이터를 학생별로 그룹화
+                    const groupedByStudent = {};
+                    json.forEach(row => {
+                        const studentId = row['학번'];
+                        const semester = row['학기'];
+                        if (!studentId || !semester) return; // 필수 필드가 없으면 건너뛰기
+
+                        if (!groupedByStudent[studentId]) {
+                            groupedByStudent[studentId] = {};
+                        }
+                        if (!groupedByStudent[studentId][semester]) {
+                            groupedByStudent[studentId][semester] = { subjects: [], credits: {}, zScoreCriteria: {} };
+                        }
+
+                        groupedByStudent[studentId][semester].subjects.push({
+                            subjectName: row['과목명'],
+                            score: row['점수'],
+                            grade: row['등급'],
+                            credit: row['단위수']
+                        });
+                    });
+
+                    // 각 학생/학기별로 데이터베이스에 저장
+                    for (const studentId of Object.keys(groupedByStudent)) {
+                        for (const semester of Object.keys(groupedByStudent[studentId])) {
+                            const dataToSave = groupedByStudent[studentId][semester];
+                            
+                            const semesterData = {};
+                            const semesterGrades = {};
+                            const semesterCredits = {};
+                            const zScoreCriteria = {};
+
+                            // 과목 및 단위수, 점수/등급 저장
+                            dataToSave.subjects.forEach(subject => {
+                                semesterCredits[subject.subjectName] = parseInt(subject.credit);
+                                if (subject.grade) {
+                                    semesterData[`${subject.subjectName}_등급`] = parseInt(subject.grade);
+                                    semesterGrades[subject.subjectName] = parseInt(subject.grade);
+                                }
+                                if (subject.score) {
+                                    semesterData[`${subject.subjectName}_점수`] = parseFloat(subject.score);
+                                    // Z-점수 과목의 경우, 기준은 수동으로 입력해야 합니다.
+                                    // 여기서는 일단 점수만 저장하고, 등급은 수동 입력 후 재계산
+                                }
+                            });
+                            
+                            // 과목 목록 업데이트
+                            const currentSubjects = allSubjects[semester] || { gradeSubjects: [], zScoreSubjects: [] };
+                            const updatedGradeSubjects = [...currentSubjects.gradeSubjects];
+                            const updatedZScoreSubjects = [...currentSubjects.zScoreSubjects];
+
+                            dataToSave.subjects.forEach(subject => {
+                                if (subject.score && !updatedZScoreSubjects.includes(subject.subjectName)) {
+                                     updatedZScoreSubjects.push(subject.subjectName);
+                                } else if (subject.grade && !updatedGradeSubjects.includes(subject.subjectName)) {
+                                    updatedGradeSubjects.push(subject.subjectName);
+                                }
+                            });
+
+                            await saveSubjects(semester, { gradeSubjects: updatedGradeSubjects, zScoreSubjects: updatedZScoreSubjects });
+                            await saveCommonData(semester, { credits: semesterCredits, zScoreCriteria: {} });
+                            
+                            // 총 등급 계산 (등급 데이터가 있는 경우만)
+                            if (Object.keys(semesterGrades).length > 0) {
+                                const totalGrade = calculateSemesterGrade(semesterGrades, semesterCredits);
+                                if (totalGrade !== null) {
+                                    semesterData['총등급'] = totalGrade.toFixed(2);
+                                }
+                            }
+                            
+                            // Firestore에 데이터 저장
+                            await saveStudentData(studentId, semester, semesterData);
+                        }
+                    }
+
+                    showMessage('엑셀 파일 업로드가 완료되었습니다!');
+                } catch (error) {
+                    console.error('파일 처리 중 오류 발생:', error);
+                    showMessage('파일 처리 중 오류가 발생했습니다. 양식을 확인해주세요.', true);
+                } finally {
+                    loadingOverlay.style.display = 'none';
+                    excelFile.value = ''; // 파일 선택 초기화
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
+</body>
+</html>
