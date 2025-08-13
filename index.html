@@ -137,6 +137,7 @@
             const username = usernameInput.value;
             const password = passwordInput.value;
 
+            // Check login credentials
             if (username === 'teacher' && password === '7400') {
                 showMessage('로그인 성공!');
                 
@@ -165,7 +166,7 @@
             }
 
             const userId = auth.currentUser.uid;
-            // Define a new document path for subject settings
+            // Define the document path for subject settings
             const docRef = doc(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/users/${userId}/my-settings/subject-info`);
             const data = {
                 subject: selectedSubject,
